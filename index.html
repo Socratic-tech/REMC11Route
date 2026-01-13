@@ -69,7 +69,7 @@
             const data = await response.json();
             
             // Filter for Pending stops
-            routeData = data.filter(stop => stop.Status === "Pending");
+           routeData = data.filter(stop => stop.Status === "Pending" || stop.Status === "")
             
             document.getElementById('loading').classList.add('hidden');
             if (routeData.length > 0) {
