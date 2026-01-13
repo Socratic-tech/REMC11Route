@@ -63,29 +63,33 @@
         let routeData = [];
         let currentIndex = 0;
 
-        async function fetchRoute() {
-            try {
-                const response = await fetch(scriptURL);
-                const data = await response.json();
-                
-                // Filter for Pending stops
-                routeData = data.filter(stop => stop.Status === "Pending");
-                
-                document.getElementById('loading').classList.add('hidden');
-                if (routeData.length > 0) {
-                    document.getElementById('app').classList.remove('hidden');
-                    document.getElementById('syncStatus').innerText = "✅ System Online";
-                    updateUI();
-                } else {
-                    document.getElementById('finished').classList.remove('hidden');
-                    document.getElementById('syncStatus').innerText = "🏁 Route Finished";
-                }
-            } catch (e) {
-                document.getElementById('loading').innerHTML = "<h2 class='text-red-500 font-bold'>Connection Error</h2><p>Check your deployment URL.</p>";
-                console.error(e);
-            }
-        }
+       async function fetchRoute() {
+    try {
+        console.log("Attempting to fetch from:", scriptURL);
+        const response = await fetch(scriptURL);
+        const data = await response.json();
+        
+        console.log("Data received:", data);
 
+        // This check ensures we have an array and the right headers
+        if (Array.isArray(data)) {
+            routeData = data.filter(stop => stop.Status === "Pending");
+            
+            if (routeData.length > 0) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('app').classList.remove('hidden');
+                updateUI();
+            } else {
+                document.getElementById('loading').innerHTML = "<h2>No 'Pending' stops found for today.</h2>";
+            }
+        } else {
+            document.getElementById('loading').innerHTML = "<h2>Error: Data format incorrect.</h2>";
+        }
+    } catch (e) {
+        console.error("Fetch error:", e);
+        document.getElementById('loading').innerHTML = "<h2>Connection Error. Check Signal.</h2>";
+    }
+}
         function updateUI() {
             const stop = routeData[currentIndex];
             document.getElementById('stopName').innerText = stop.Name;
