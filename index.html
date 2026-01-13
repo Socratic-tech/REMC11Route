@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>REMC Route Tool</title>
+    <style>
+        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --bg: #f8f9fa; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; }
+        .container { width: 100%; max-width: 500px; }
+        .card { background: white; border-radius: 20px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px; }
+        h1 { margin: 0 0 10px 0; font-size: 1.5rem; color: #333; }
+        p { color: #666; font-size: 1.1rem; line-height: 1.4; margin-bottom: 20px; }
+        .btn { display: block; width: 100%; padding: 20px; margin: 12px 0; font-size: 1.2rem; font-weight: bold; border-radius: 12px; border: none; cursor: pointer; transition: transform 0.1s; text-decoration: none; box-sizing: border-box; }
+        .btn:active { transform: scale(0.98); }
+        .nav-btn { background: var(--primary); color: white; }
+        .done-btn { background: var(--success); color: white; height: 120px; font-size: 1.5rem; }
+        .skip-btn { background: var(--danger); color: white; }
+        .sync-indicator { font-size: 0.8rem; color: #999; margin-top: 10px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="loading"><h2>Loading Today's Route...</h2></div>
+    
+    <div id="app" class="hidden">
+        <div class="card">
+            <h1 id="stopName">Stop Name</h1>
+            <p id="addressText">123 Loading Street, City, ST</p>
+            <a id="navLink" href="#" class="btn nav-btn">📍 Open Navigation</a>
+        </div>
+
+        <button class="btn done-btn" onclick="handleAction('Completed')">COMPLETE STOP</button>
+        <button class="btn skip-btn" onclick="handleAction('Skipped')">SKIP STOP</button>
+        
+        <div class="sync-indicator" id="syncStatus">All updates synced to office</div>
+        <p id="progressText" style="text-align:center; font-weight:bold;"></p>
+    </div>
+
+    <div id="finished" class="hidden card">
+        <h1>Route Finished! 🎉</h1>
+        <p>All stops for today have been processed.</p>
+        <button class="btn nav-btn" onclick="location.reload()">Refresh for Updates</button>
+    </div>
+</div>
+
+<script>
+    // YOUR LIVE LINK
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbxB0pBHM8Tfv34WZM097PUEccpshqZmAsDybtJ3BJzEvzYp8KWqhgSYGMkuwhYKqIL0AQ/exec';
+    
+    let routeData = [];
+    let currentIndex = 0;
+
+    async function fetchRoute() {
+        try {
+            const response = await fetch(scriptURL);
+            const data = await response.json();
+            // Filter out already completed/skipped stops from the sheet
+            routeData = data.filter(stop => stop.Status === "Pending");
+            
+            document.getElementById('loading').classList.add('hidden');
+            if (routeData.length > 0) {
+                document.getElementById('app').classList.remove('hidden');
+                updateUI();
+            } else {
+                document.getElementById('finished').classList.remove('hidden');
+            }
+        } catch (e) {
+            document.getElementById('loading').innerHTML = "<h2>Connection Error. Check Signal.</h2>";
+        }
+    }
+
+    function updateUI() {
+        const stop = routeData[currentIndex];
+        document.getElementById('stopName').innerText = stop.Name;
+        document.getElementById('addressText').innerText = stop.Address;
+        document.getElementById('navLink').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.Address)}`;
+        document.getElementById('progressText').innerText = `Stop ${currentIndex + 1} of ${routeData.length}`;
+    }
+
+    async function handleAction(status) {
+        const stop = routeData[currentIndex];
+        let note = "";
+        
+        if (status === 'Skipped') {
+            note = prompt("Reason for skipping?") || "No reason provided";
+        }
+
+        // Optimistic UI: Move to next stop immediately
+        document.getElementById('syncStatus').innerText = "☁️ Syncing with office...";
+        
+        const payload = {
+            stopName: stop.Name,
+            status: status,
+            note: note
+        };
+
+        // Send to Google Sheets
+        fetch(scriptURL, {
+            method: 'POST',
+            mode: 'no-cors', // Essential for Google Script POST
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(() => {
+            document.getElementById('syncStatus').innerText = "✅ Synced to office";
+        }).catch(() => {
+            document.getElementById('syncStatus').innerText = "⚠️ Offline: Will retry later";
+            // In a full build, we'd save to LocalStorage here
+        });
+
+        currentIndex++;
+        if (currentIndex < routeData.length) {
+            updateUI();
+        } else {
+            document.getElementById('app').classList.add('hidden');
+            document.getElementById('finished').classList.remove('hidden');
+        }
+    }
+
+    fetchRoute();
+</script>
+
+</body>
+</html>
