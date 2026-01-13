@@ -87,16 +87,16 @@
     }
 
     function updateUI() {
-        const stop = routeData[currentIndex];
-        document.getElementById('stopName').innerText = stop.Name;
-        document.getElementById('addressText').innerText = stop.Address;
-        
-        // Fixed navigation link formatting
-        const encodedAddr = encodeURIComponent(stop.Address);
-        document.getElementById('navLink').href = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddr}`;
-        
-        document.getElementById('progressText').innerText = `Stop ${currentIndex + 1} of ${routeData.length}`;
-    }
+    const stop = routeData[currentIndex];
+    // These must match the JSON keys exactly (Capital "N" and "A")
+    document.getElementById('stopName').innerText = stop.Name;
+    document.getElementById('addressText').innerText = stop.Address;
+    
+    const encodedAddr = encodeURIComponent(stop.Address);
+    document.getElementById('navLink').href = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddr}`;
+    
+    document.getElementById('progressText').innerText = `Stop ${currentIndex + 1} of ${routeData.length}`;
+}
 
     async function handleAction(status) {
         const stop = routeData[currentIndex];
