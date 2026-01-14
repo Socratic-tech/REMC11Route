@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>REMC Driver Tool</title>
+    <title>REMC Route Tool</title>
     
     <!-- PWA Meta Tags -->
     <link rel="manifest" href="/manifest.json">
@@ -23,6 +23,16 @@
         .offline-badge { background-color: #f59e0b; }
         .online-badge { background-color: #10b981; }
         #photoPreview { max-width: 100%; border-radius: 8px; margin-top: 10px; }
+        .stop-item {
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .stop-item:active {
+            transform: scale(0.98);
+        }
+        .stop-pending { border-left: 4px solid #eab308; }
+        .stop-complete { border-left: 4px solid #22c55e; background-color: #1e3a2a; }
+        .stop-skipped { border-left: 4px solid #ef4444; background-color: #3a1e1e; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -35,14 +45,38 @@
         </div>
     </header>
 
-    <main class="flex-grow flex flex-col items-center justify-center p-6">
+    <main class="flex-grow flex flex-col items-center p-6">
         
         <div id="loading" class="text-center">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
             <p class="text-lg">Loading Today's Route...</p>
         </div>
 
+        <!-- STOP LIST VIEW -->
+        <div id="listView" class="hidden w-full max-w-2xl">
+            <div class="mb-4 flex justify-between items-center">
+                <h2 class="text-2xl font-bold">Today's Stops</h2>
+                <button onclick="showCurrentStop()" class="bg-blue-600 px-4 py-2 rounded-lg font-bold">
+                    Return to Current
+                </button>
+            </div>
+            
+            <div id="stopsList" class="space-y-3">
+                <!-- Stops will be populated here -->
+            </div>
+        </div>
+
+        <!-- SINGLE STOP VIEW -->
         <div id="app" class="hidden w-full max-w-md space-y-6">
+            <div class="flex justify-between mb-4">
+                <button onclick="showListView()" class="bg-gray-700 px-4 py-2 rounded-lg font-bold text-sm">
+                    📋 View All Stops
+                </button>
+                <button id="backButton" onclick="goBack()" class="hidden bg-gray-700 px-4 py-2 rounded-lg font-bold text-sm">
+                    ⬅️ Back
+                </button>
+            </div>
+
             <div class="bg-gray-800 rounded-2xl p-6 border border-gray-700 btn-shadow text-center">
                 <p id="progressText" class="text-blue-400 text-sm font-bold mb-2 uppercase tracking-widest">Stop 1 of --</p>
                 <h2 id="stopName" class="text-3xl font-extrabold mb-2">---</h2>
@@ -85,6 +119,7 @@
         <div id="finished" class="hidden text-center space-y-4">
             <h2 class="text-4xl font-bold">Route Complete!</h2>
             <p class="text-gray-400">All stops for today have been updated.</p>
+            <button onclick="showListView()" class="bg-blue-600 px-6 py-3 rounded-lg font-bold mb-2">View All Stops</button>
             <button onclick="location.reload()" class="bg-gray-700 px-6 py-2 rounded-lg">Refresh List</button>
         </div>
 
@@ -103,6 +138,7 @@
         let isOnline = navigator.onLine;
         let pendingUpdates = [];
         let currentPhoto = null;
+        let stopStatuses = {}; // Track status of each stop
 
         function takePhoto() {
             if (!isOnline) {
@@ -124,6 +160,71 @@
                 reader.readAsDataURL(file);
             }
         });
+
+        function showListView() {
+            document.getElementById('app').classList.add('hidden');
+            document.getElementById('finished').classList.add('hidden');
+            document.getElementById('listView').classList.remove('hidden');
+            renderStopsList();
+        }
+
+        function showCurrentStop() {
+            document.getElementById('listView').classList.add('hidden');
+            if (currentIndex < routeData.length) {
+                document.getElementById('app').classList.remove('hidden');
+            } else {
+                document.getElementById('finished').classList.remove('hidden');
+            }
+        }
+
+        function goToStop(index) {
+            currentIndex = index;
+            updateUI();
+            showCurrentStop();
+        }
+
+        function goBack() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                updateUI();
+            }
+        }
+
+        function renderStopsList() {
+            const listContainer = document.getElementById('stopsList');
+            listContainer.innerHTML = '';
+            
+            routeData.forEach((stop, index) => {
+                const status = stopStatuses[stop.actualRow] || 'Pending';
+                const statusClass = status === 'Complete' ? 'stop-complete' : 
+                                   status === 'Skipped' ? 'stop-skipped' : 'stop-pending';
+                
+                const statusIcon = status === 'Complete' ? '✅' : 
+                                  status === 'Skipped' ? '❌' : '📍';
+                
+                const stopDiv = document.createElement('div');
+                stopDiv.className = `stop-item ${statusClass} bg-gray-800 p-4 rounded-lg border border-gray-700`;
+                stopDiv.onclick = () => goToStop(index);
+                
+                stopDiv.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex-grow">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-2xl">${statusIcon}</span>
+                                <span class="font-bold text-blue-400">Stop ${index + 1}</span>
+                                ${index === currentIndex ? '<span class="bg-blue-600 text-xs px-2 py-1 rounded">Current</span>' : ''}
+                            </div>
+                            <h3 class="text-lg font-bold">${stop.Name}</h3>
+                            <p class="text-sm text-gray-400">${stop.Address}</p>
+                            ${status !== 'Pending' ? `<p class="text-xs text-gray-500 mt-1">Status: ${status}</p>` : ''}
+                        </div>
+                        <button class="text-blue-400 text-xl ml-2">→</button>
+                    </div>
+                `;
+                
+                listContainer.appendChild(stopDiv);
+            });
+        }
 
         function loadPendingUpdates() {
             try {
@@ -215,6 +316,13 @@
                 if (cached && !navigator.onLine) {
                     const data = JSON.parse(cached);
                     routeData = data.filter(stop => stop.Status === "Pending" || stop.Status === "");
+                    
+                    // Load saved statuses
+                    const savedStatuses = localStorage.getItem('stopStatuses');
+                    if (savedStatuses) {
+                        stopStatuses = JSON.parse(savedStatuses);
+                    }
+                    
                     document.getElementById('loading').classList.add('hidden');
                     if (routeData.length > 0) {
                         document.getElementById('app').classList.remove('hidden');
@@ -228,6 +336,14 @@
                 const data = await response.json();
                 
                 localStorage.setItem('routeDataCache', JSON.stringify(data));
+                
+                // Initialize statuses from loaded data
+                data.forEach(stop => {
+                    if (stop.Status && stop.Status !== 'Pending') {
+                        stopStatuses[stop.actualRow] = stop.Status;
+                    }
+                });
+                localStorage.setItem('stopStatuses', JSON.stringify(stopStatuses));
                 
                 document.getElementById('loading').classList.add('hidden');
                 
@@ -252,6 +368,12 @@
                 if (cached) {
                     const data = JSON.parse(cached);
                     routeData = data.filter(stop => stop.Status === "Pending" || stop.Status === "");
+                    
+                    const savedStatuses = localStorage.getItem('stopStatuses');
+                    if (savedStatuses) {
+                        stopStatuses = JSON.parse(savedStatuses);
+                    }
+                    
                     document.getElementById('loading').classList.add('hidden');
                     if (routeData.length > 0) {
                         document.getElementById('app').classList.remove('hidden');
@@ -275,6 +397,15 @@
             
             document.getElementById('progressText').innerText = `Stop ${currentIndex + 1} of ${routeData.length}`;
             
+            // Show/hide back button
+            const backButton = document.getElementById('backButton');
+            if (currentIndex > 0) {
+                backButton.classList.remove('hidden');
+            } else {
+                backButton.classList.add('hidden');
+            }
+            
+            // Clear photo for next stop
             currentPhoto = null;
             document.getElementById('photoContainer').classList.add('hidden');
             document.getElementById('cameraInput').value = '';
@@ -289,6 +420,10 @@
             }
 
             console.log('Processing action:', status);
+            
+            // Save status locally
+            stopStatuses[stop.actualRow] = status;
+            localStorage.setItem('stopStatuses', JSON.stringify(stopStatuses));
 
             if (isOnline) {
                 document.getElementById('syncStatus').innerText = "☁️ Syncing...";
