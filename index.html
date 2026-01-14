@@ -292,7 +292,6 @@
             for (const update of updates) {
                 try {
                     await fetch(update.url, { mode: 'no-cors' });
-                    await new Promise(resolve => setTimeout(resolve, 300));
                 } catch (e) {
                     pendingUpdates.push(update);
                 }
@@ -445,12 +444,12 @@
                             headers: { 'Content-Type': 'application/json' }
                         });
                         
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                       
                         document.getElementById('syncStatus').innerText = "✅ Photo Uploaded";
                     } else {
                         const updateURL = `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`;
                         await fetch(updateURL, { mode: 'no-cors' });
-                        await new Promise(resolve => setTimeout(resolve, 500));
+                        
                         document.getElementById('syncStatus').innerText = "✅ Sent to Sheet";
                     }
                 } catch (e) {
