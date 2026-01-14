@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate REMC Icons</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f0f0f0; }
+        .icon-preview { margin: 20px 0; text-align: center; }
+        canvas { border: 2px solid #ccc; margin: 10px; background: white; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>REMC Route Tool Icons</h1>
+    <div class="icon-preview">
+        <h2>192x192 Icon</h2>
+        <canvas id="canvas192" width="192" height="192"></canvas>
+        <br>
+        <button onclick="downloadIcon('canvas192', 'icon-192.png')">Download 192x192</button>
+    </div>
+    
+    <div class="icon-preview">
+        <h2>512x512 Icon</h2>
+        <canvas id="canvas512" width="512" height="512"></canvas>
+        <br>
+        <button onclick="downloadIcon('canvas512', 'icon-512.png')">Download 512x512</button>
+    </div>
+
+    <script>
+        function drawIcon(canvas) {
+            const ctx = canvas.getContext('2d');
+            const size = canvas.width;
+            
+            // Background - blue gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, size);
+            gradient.addColorStop(0, '#3b82f6');
+            gradient.addColorStop(1, '#1e40af');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // Draw truck icon
+            ctx.fillStyle = 'white';
+            const scale = size / 192;
+            
+            // Truck body
+            ctx.fillRect(40 * scale, 70 * scale, 80 * scale, 50 * scale);
+            
+            // Truck cab
+            ctx.fillRect(120 * scale, 85 * scale, 30 * scale, 35 * scale);
+            
+            // Wheels
+            ctx.beginPath();
+            ctx.arc(65 * scale, 125 * scale, 12 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(95 * scale, 125 * scale, 12 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(135 * scale, 125 * scale, 12 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Route line
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 3 * scale;
+            ctx.setLineDash([5 * scale, 5 * scale]);
+            ctx.beginPath();
+            ctx.moveTo(40 * scale, 150 * scale);
+            ctx.lineTo(80 * scale, 165 * scale);
+            ctx.lineTo(120 * scale, 155 * scale);
+            ctx.lineTo(150 * scale, 165 * scale);
+            ctx.stroke();
+        }
+        
+        // Draw both icons
+        drawIcon(document.getElementById('canvas192'));
+        drawIcon(document.getElementById('canvas512'));
+        
+        function downloadIcon(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+    </script>
+</body>
+</html>
