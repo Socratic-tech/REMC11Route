@@ -40,6 +40,16 @@
 const scriptURL =
   "https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec";
 
+function todayISO() {
+  const d = new Date();
+  return d.toISOString().split("T")[0];
+}
+
+  window.onload = () => {
+  document.getElementById("datePicker").value = todayISO();
+  loadData(); // 👈 auto-load today
+};
+
 let map = L.map("map").setView([42.1, -86.4], 10);
 let markers = [];
 
