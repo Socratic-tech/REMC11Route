@@ -2,34 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-  >
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>REMC Route Tool</title>
 
-  <!-- PWA Meta -->
+  <!-- PWA Meta Tags -->
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#2563eb">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="REMC Routes">
   <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
 
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    body {
-      background-color: #1a202c;
-      color: white;
-      font-family: system-ui, sans-serif;
-    }
-    .btn-shadow {
-      box-shadow: 0 4px 6px -1px rgba(0,0,0,.5);
-    }
-    .hidden {
-      display: none;
-    }
+    body { background-color: #1a202c; color: white; font-family: system-ui, sans-serif; }
+    .btn-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); }
+    .hidden { display: none; }
+    .offline-badge { background-color: #f59e0b; }
+    .online-badge { background-color: #10b981; }
+    #photoPreview { max-width: 100%; border-radius: 8px; margin-top: 10px; }
+
+    .stop-item { transition: all 0.2s; cursor: pointer; }
+    .stop-item:active { transform: scale(0.98); }
+    .stop-pending { border-left: 4px solid #eab308; }
+    .stop-complete { border-left: 4px solid #22c55e; background-color: #1e3a2a; }
+    .stop-skipped { border-left: 4px solid #ef4444; background-color: #3a1e1e; }
   </style>
 </head>
 
@@ -37,282 +38,606 @@
 
 <header class="bg-blue-700 p-4 text-center shadow-lg">
   <h1 class="text-xl font-bold tracking-tight">REMC FIELD TOOL</h1>
-  <p id="syncStatus" class="text-xs text-blue-200 mt-1">Loading…</p>
+  <p id="syncStatus" class="text-xs text-blue-200 mt-1">Checking connection...</p>
+  <div id="offlineIndicator" class="hidden mt-2 inline-block px-3 py-1 rounded-full text-xs font-bold">
+    📶 OFFLINE MODE - Photos cannot be uploaded
+  </div>
 </header>
 
 <main class="flex-grow flex flex-col items-center p-6">
 
-  <!-- LOADING -->
   <div id="loading" class="text-center">
     <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-    <p class="text-lg">Loading Today's Route…</p>
+    <p class="text-lg">Loading Today's Route...</p>
   </div>
 
-  <!-- STOP VIEW -->
+  <!-- STOP LIST VIEW -->
+  <div id="listView" class="hidden w-full max-w-2xl">
+    <div class="mb-4 flex justify-between items-center">
+      <h2 class="text-2xl font-bold">Today's Stops</h2>
+      <button onclick="showCurrentStop()" class="bg-blue-600 px-4 py-2 rounded-lg font-bold">
+        Return to Current
+      </button>
+    </div>
+
+    <div id="stopsList" class="space-y-3"></div>
+  </div>
+
+  <!-- SINGLE STOP VIEW -->
   <div id="app" class="hidden w-full max-w-md space-y-6">
+    <div class="flex justify-between mb-4">
+      <button onclick="showListView()" class="bg-gray-700 px-4 py-2 rounded-lg font-bold text-sm">
+        📋 View All Stops
+      </button>
+      <button id="backButton" onclick="goBack()" class="hidden bg-gray-700 px-4 py-2 rounded-lg font-bold text-sm">
+        ⬅️ Back
+      </button>
+    </div>
 
     <div class="bg-gray-800 rounded-2xl p-6 border border-gray-700 btn-shadow text-center">
-
-      <p
-        id="progressText"
-        class="text-blue-400 text-sm font-bold mb-2 uppercase tracking-widest"
-      >
-        Stop --
+      <p id="progressText" class="text-blue-400 text-sm font-bold mb-2 uppercase tracking-widest">
+        Stop 1 of --
       </p>
 
       <h2 id="stopName" class="text-3xl font-extrabold mb-2">---</h2>
       <p id="addressText" class="text-gray-400 text-lg mb-2">---</p>
 
-      <!-- DELIVERY NOTE -->
-      <div
-        id="deliveryNote"
-        class="hidden bg-yellow-900/40 border border-yellow-700 text-yellow-200 text-sm rounded-lg p-3 mt-3 text-left"
-      >
+      <!-- DELIVERY NOTE (NEW) -->
+      <div id="deliveryNote"
+           class="hidden bg-yellow-900/40 border border-yellow-700 text-yellow-200 text-sm rounded-lg p-3 mt-3 text-left">
         <strong>📦 Delivery Note</strong>
         <div id="deliveryNoteText" class="mt-1"></div>
       </div>
 
-      <!-- DISTANCE -->
-      <div
-        id="distanceBox"
-        class="hidden text-sm text-blue-300 mt-3"
-      >
+      <!-- DISTANCE (NEW) -->
+      <div id="distanceBox" class="hidden text-sm text-blue-300 mt-3">
         📍 <span id="distanceText"></span> miles to destination
       </div>
 
-      <a
-        id="navLink"
-        href="#"
-        target="_blank"
-        class="inline-block bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-xl w-full text-xl transition transform active:scale-95 btn-shadow mt-4"
-      >
+      <a id="navLink" href="#" target="_blank"
+         class="inline-block bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-xl w-full text-xl transition transform active:scale-95 btn-shadow mt-4">
         🗺️ OPEN NAVIGATION
       </a>
 
-      <button
-        onclick="takePhoto()"
-        id="photoButton"
-        class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-xl w-full text-lg transition transform active:scale-95 btn-shadow mt-4"
-      >
+      <button onclick="takePhoto()" id="photoButton"
+              class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-xl w-full text-lg transition transform active:scale-95 btn-shadow mt-4">
         📷 TAKE PHOTO
       </button>
 
       <div id="photoContainer" class="hidden mt-4">
-        <img id="photoPreview" class="rounded-lg">
-        <p class="text-green-400 text-sm mt-2">✓ Photo ready</p>
+        <img id="photoPreview" src="" alt="Photo preview">
+        <p class="text-green-400 text-sm mt-2">✓ Photo ready to upload</p>
       </div>
 
-      <input
-        type="file"
-        id="cameraInput"
-        accept="image/*"
-        capture="environment"
-        class="hidden"
-      >
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden">
     </div>
 
     <div class="grid grid-cols-2 gap-4">
-      <button
-        onclick="handleAction('Complete')"
-        class="bg-green-600 hover:bg-green-500 py-6 rounded-xl font-bold text-xl btn-shadow transition transform active:scale-95"
-      >
+      <button onclick="handleAction('Complete')"
+              class="bg-green-600 hover:bg-green-500 py-6 rounded-xl font-bold text-xl btn-shadow transition transform active:scale-95">
         ✅ DONE
       </button>
-      <button
-        onclick="handleAction('Skipped')"
-        class="bg-red-600 hover:bg-red-500 py-6 rounded-xl font-bold text-xl btn-shadow transition transform active:scale-95"
-      >
+      <button onclick="handleAction('Skipped')"
+              class="bg-red-600 hover:bg-red-500 py-6 rounded-xl font-bold text-xl btn-shadow transition transform active:scale-95">
         ❌ SKIP
       </button>
     </div>
+
+    <div id="pendingSync" class="hidden bg-yellow-600 rounded-lg p-3 text-center text-sm">
+      <span id="pendingCount">0</span> updates waiting to sync
+    </div>
   </div>
 
+  <div id="finished" class="hidden text-center space-y-4">
+    <h2 class="text-4xl font-bold">Route Complete!</h2>
+    <p class="text-gray-400">All stops for today have been updated.</p>
+    <!-- You asked for this earlier: list still accessible on finished screen -->
+    <button onclick="showListView()" class="bg-blue-600 px-6 py-3 rounded-lg font-bold mb-2">
+      View All Stops
+    </button>
+    <button onclick="location.reload()" class="bg-gray-700 px-6 py-2 rounded-lg">
+      Refresh List
+    </button>
+  </div>
+
+  <div id="noDeliveries" class="hidden text-center space-y-4">
+    <h2 class="text-4xl font-bold">📦 No Deliveries Today</h2>
+    <p class="text-gray-400">Enjoy your day off!</p>
+    <p class="text-sm text-gray-500 mt-4">We typically don't deliver on Wednesdays.</p>
+  </div>
 </main>
 
 <script>
-/**********************************************************
- * CONFIG
- **********************************************************/
-const scriptURL =
-  "https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec";
+  /**********************************************************
+   * CONFIG
+   **********************************************************/
+  const scriptURL = 'https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec';
 
-let routeData = [];
-let currentIndex = 0;
-let currentPhoto = null;
-let watchId = null;
+  let routeData = [];
+  let currentIndex = 0;
 
-/**********************************************************
- * FETCH ROUTE
- **********************************************************/
-async function fetchRoute() {
-  try {
-    const res = await fetch(scriptURL);
-    routeData = await res.json();
+  let isOnline = navigator.onLine;
+  let pendingUpdates = [];
+  let currentPhoto = null;
+  let stopStatuses = {}; // Track status of each stop
 
-    document.getElementById("loading").classList.add("hidden");
+  // Distance tracking
+  let watchId = null;
+  let currentDest = null;
 
-    if (!routeData.length) {
-      document.getElementById("syncStatus").innerText = "No stops today";
+  /**********************************************************
+   * PHOTO
+   **********************************************************/
+  function takePhoto() {
+    if (!isOnline) {
+      alert("⚠️ You must be online to take photos. Photos cannot be saved offline.");
       return;
     }
+    document.getElementById('cameraInput').click();
+  }
 
-    document.getElementById("app").classList.remove("hidden");
+  document.getElementById('cameraInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      currentPhoto = event.target.result;
+      document.getElementById('photoPreview').src = currentPhoto;
+      document.getElementById('photoContainer').classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  /**********************************************************
+   * VIEWS
+   **********************************************************/
+  function showListView() {
+    document.getElementById('app').classList.add('hidden');
+    document.getElementById('finished').classList.add('hidden');
+    document.getElementById('listView').classList.remove('hidden');
+    renderStopsList();
+  }
+
+  function showCurrentStop() {
+    document.getElementById('listView').classList.add('hidden');
+    if (currentIndex < routeData.length) {
+      document.getElementById('app').classList.remove('hidden');
+    } else {
+      document.getElementById('finished').classList.remove('hidden');
+    }
+  }
+
+  function goToStop(index) {
+    currentIndex = index;
     updateUI();
-  } catch (e) {
-    document.getElementById("syncStatus").innerText = "Error loading route";
-  }
-}
-
-/**********************************************************
- * UI UPDATE
- **********************************************************/
-function updateUI() {
-  const stop = routeData[currentIndex];
-
-  document.getElementById("stopName").innerText = stop.Name;
-  document.getElementById("addressText").innerText = stop.Address;
-  document.getElementById("progressText").innerText =
-    `Stop ${currentIndex + 1} of ${routeData.length}`;
-
-  // Normalize coordinates
-  const lat = Number(stop.lat ?? stop.Lat);
-  const lng = Number(stop.lng ?? stop.Lng);
-
-  // NAVIGATION: use coordinates when available
-  if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
-    document.getElementById("navLink").href =
-      `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-    startDistanceTracking(lat, lng);
-  } else {
-    document.getElementById("navLink").href =
-      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.Address)}`;
-    stopDistanceTracking();
+    showCurrentStop();
   }
 
-  // DELIVERY NOTE
-  const noteBox = document.getElementById("deliveryNote");
-  const noteText = document.getElementById("deliveryNoteText");
-  const deliveryNote = stop["Delivery Note"] || "";
-
-  if (deliveryNote && deliveryNote.trim() !== "") {
-    noteText.innerText = deliveryNote;
-    noteBox.classList.remove("hidden");
-  } else {
-    noteText.innerText = "";
-    noteBox.classList.add("hidden");
+  function goBack() {
+    if (currentIndex > 0) {
+      currentIndex--;
+      updateUI();
+    }
   }
 
-  // Reset photo
-  currentPhoto = null;
-  document.getElementById("photoContainer").classList.add("hidden");
-  document.getElementById("cameraInput").value = "";
-}
+  function renderStopsList() {
+    const listContainer = document.getElementById('stopsList');
+    listContainer.innerHTML = '';
 
-/**********************************************************
- * DISTANCE TRACKING (NO API)
- **********************************************************/
-function startDistanceTracking(destLat, destLng) {
-  if (!navigator.geolocation) return;
+    routeData.forEach((stop, index) => {
+      const status = stopStatuses[stop.actualRow] || 'Pending';
+      const statusClass = status === 'Complete' ? 'stop-complete' :
+                         status === 'Skipped' ? 'stop-skipped' : 'stop-pending';
 
-  const box = document.getElementById("distanceBox");
-  const text = document.getElementById("distanceText");
-  box.classList.remove("hidden");
+      const statusIcon = status === 'Complete' ? '✅' :
+                        status === 'Skipped' ? '❌' : '📍';
 
-  if (watchId) navigator.geolocation.clearWatch(watchId);
+      const deliveryNote = (stop["Delivery Note"] || "").trim();
 
-  watchId = navigator.geolocation.watchPosition(pos => {
-    const miles = haversine(
-      pos.coords.latitude,
-      pos.coords.longitude,
-      destLat,
-      destLng
+      const stopDiv = document.createElement('div');
+      stopDiv.className = `stop-item ${statusClass} bg-gray-800 p-4 rounded-lg border border-gray-700`;
+      stopDiv.onclick = () => goToStop(index);
+
+      stopDiv.innerHTML = `
+        <div class="flex justify-between items-start">
+          <div class="flex-grow">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-2xl">${statusIcon}</span>
+              <span class="font-bold text-blue-400">Stop ${index + 1}</span>
+              ${index === currentIndex ? '<span class="bg-blue-600 text-xs px-2 py-1 rounded">Current</span>' : ''}
+            </div>
+            <h3 class="text-lg font-bold">${stop.Name}</h3>
+            <p class="text-sm text-gray-400">${stop.Address}</p>
+            ${deliveryNote ? `<p class="text-xs text-yellow-200 mt-2"><strong>📦 Note:</strong> ${escapeHtml(deliveryNote)}</p>` : ''}
+            ${status !== 'Pending' ? `<p class="text-xs text-gray-300 mt-2">Status: ${status}</p>` : ''}
+          </div>
+          <button class="text-blue-400 text-xl ml-2">→</button>
+        </div>
+      `;
+
+      listContainer.appendChild(stopDiv);
+    });
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+    }[m]));
+  }
+
+  /**********************************************************
+   * PENDING UPDATES CACHE
+   **********************************************************/
+  function loadPendingUpdates() {
+    try {
+      const stored = localStorage.getItem('pendingUpdates');
+      if (stored) {
+        pendingUpdates = JSON.parse(stored);
+        updatePendingDisplay();
+      }
+    } catch (e) {
+      console.error('Error loading pending updates:', e);
+      localStorage.removeItem('pendingUpdates');
+      pendingUpdates = [];
+    }
+  }
+
+  function savePendingUpdates() {
+    try {
+      localStorage.setItem('pendingUpdates', JSON.stringify(pendingUpdates));
+      updatePendingDisplay();
+    } catch (e) {
+      console.error('Error saving pending updates:', e);
+      alert('Warning: Unable to save pending updates locally');
+    }
+  }
+
+  function updatePendingDisplay() {
+    const pendingDiv = document.getElementById('pendingSync');
+    const countSpan = document.getElementById('pendingCount');
+    if (pendingUpdates.length > 0) {
+      pendingDiv.classList.remove('hidden');
+      countSpan.innerText = pendingUpdates.length;
+    } else {
+      pendingDiv.classList.add('hidden');
+    }
+  }
+
+  /**********************************************************
+   * ONLINE / OFFLINE
+   **********************************************************/
+  function updateOnlineStatus() {
+    isOnline = navigator.onLine;
+    const indicator = document.getElementById('offlineIndicator');
+    const syncStatus = document.getElementById('syncStatus');
+    const photoButton = document.getElementById('photoButton');
+
+    if (isOnline) {
+      indicator.classList.add('hidden');
+      syncStatus.classList.remove('offline-badge');
+      syncStatus.classList.add('online-badge');
+      syncStatus.innerText = "✅ System Online";
+      photoButton.classList.remove('opacity-50');
+      syncPendingUpdates();
+    } else {
+      indicator.classList.remove('hidden');
+      indicator.classList.add('offline-badge');
+      syncStatus.innerText = "⚠️ Offline - Photos Disabled";
+      photoButton.classList.add('opacity-50');
+    }
+  }
+
+  window.addEventListener('online', updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+
+  async function syncPendingUpdates() {
+    if (pendingUpdates.length === 0) return;
+
+    document.getElementById('syncStatus').innerText = "☁️ Syncing " + pendingUpdates.length + " updates...";
+
+    const updates = [...pendingUpdates];
+    pendingUpdates = [];
+
+    for (const update of updates) {
+      try {
+        await fetch(update.url, { mode: 'no-cors' });
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (e) {
+        pendingUpdates.push(update);
+      }
+    }
+
+    savePendingUpdates();
+
+    if (pendingUpdates.length === 0) {
+      document.getElementById('syncStatus').innerText = "✅ All Updates Synced";
+    } else {
+      document.getElementById('syncStatus').innerText = "⚠️ Some updates failed - will retry";
+    }
+  }
+
+  /**********************************************************
+   * ROUTE FETCH
+   **********************************************************/
+  async function fetchRoute() {
+    try {
+      const cached = localStorage.getItem('routeDataCache');
+      if (cached && !navigator.onLine) {
+        const data = JSON.parse(cached);
+        routeData = data.filter(stop => stop.Status === "Pending" || stop.Status === "" || stop.Status === ""); // keep
+        const savedStatuses = localStorage.getItem('stopStatuses');
+        if (savedStatuses) stopStatuses = JSON.parse(savedStatuses);
+
+        document.getElementById('loading').classList.add('hidden');
+        if (routeData.length > 0) {
+          document.getElementById('app').classList.remove('hidden');
+          updateUI();
+        }
+        document.getElementById('syncStatus').innerText = "📦 Using Cached Route";
+        return;
+      }
+
+      const response = await fetch(scriptURL);
+      const data = await response.json();
+
+      localStorage.setItem('routeDataCache', JSON.stringify(data));
+
+      // initialize statuses from loaded data
+      data.forEach(stop => {
+        if (stop.Status && stop.Status !== 'Pending') {
+          stopStatuses[stop.actualRow] = stop.Status;
+        }
+      });
+      localStorage.setItem('stopStatuses', JSON.stringify(stopStatuses));
+
+      document.getElementById('loading').classList.add('hidden');
+
+      if (data.length === 0) {
+        document.getElementById('noDeliveries').classList.remove('hidden');
+        document.getElementById('syncStatus').innerText = "📦 No Deliveries Scheduled";
+        return;
+      }
+
+      routeData = data.filter(stop => stop.Status === "Pending" || stop.Status === "");
+
+      if (routeData.length > 0) {
+        document.getElementById('app').classList.remove('hidden');
+        document.getElementById('syncStatus').innerText = "✅ System Online";
+        updateUI();
+      } else {
+        document.getElementById('finished').classList.remove('hidden');
+        document.getElementById('syncStatus').innerText = "🏁 Route Finished";
+      }
+
+    } catch (e) {
+      const cached = localStorage.getItem('routeDataCache');
+      if (cached) {
+        const data = JSON.parse(cached);
+        routeData = data.filter(stop => stop.Status === "Pending" || stop.Status === "");
+
+        const savedStatuses = localStorage.getItem('stopStatuses');
+        if (savedStatuses) stopStatuses = JSON.parse(savedStatuses);
+
+        document.getElementById('loading').classList.add('hidden');
+        if (routeData.length > 0) {
+          document.getElementById('app').classList.remove('hidden');
+          updateUI();
+        }
+        document.getElementById('syncStatus').innerText = "⚠️ Offline - Using Cached Route";
+      } else {
+        document.getElementById('loading').innerHTML =
+          "<h2 class='text-red-500 font-bold'>Connection Error</h2><p>No cached data available.</p>";
+        console.error('Fetch error:', e);
+      }
+    }
+  }
+
+  /**********************************************************
+   * DISTANCE + NAV (NEW)
+   **********************************************************/
+  function stopDistanceTracking() {
+    const box = document.getElementById('distanceBox');
+    box.classList.add('hidden');
+    if (watchId) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
+    currentDest = null;
+  }
+
+  function startDistanceTracking(destLat, destLng) {
+    if (!navigator.geolocation) return;
+
+    const box = document.getElementById('distanceBox');
+    const text = document.getElementById('distanceText');
+    box.classList.remove('hidden');
+
+    currentDest = { lat: destLat, lng: destLng };
+
+    if (watchId) navigator.geolocation.clearWatch(watchId);
+
+    watchId = navigator.geolocation.watchPosition(
+      pos => {
+        const miles = haversineMiles(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          destLat,
+          destLng
+        );
+        text.innerText = miles.toFixed(2);
+      },
+      err => {
+        // If user denies location, just hide distance
+        box.classList.add('hidden');
+      },
+      { enableHighAccuracy: true, maximumAge: 15000, timeout: 10000 }
     );
-    text.innerText = miles.toFixed(2);
-  });
-}
-
-function stopDistanceTracking() {
-  const box = document.getElementById("distanceBox");
-  box.classList.add("hidden");
-  if (watchId) {
-    navigator.geolocation.clearWatch(watchId);
-    watchId = null;
-  }
-}
-
-function haversine(lat1, lon1, lat2, lon2) {
-  const R = 3958.8; // miles
-  const toRad = d => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) *
-    Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-/**********************************************************
- * PHOTO HANDLING
- **********************************************************/
-function takePhoto() {
-  document.getElementById("cameraInput").click();
-}
-
-document.getElementById("cameraInput").addEventListener("change", e => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = ev => {
-    currentPhoto = ev.target.result;
-    document.getElementById("photoPreview").src = currentPhoto;
-    document.getElementById("photoContainer").classList.remove("hidden");
-  };
-  reader.readAsDataURL(file);
-});
-
-/**********************************************************
- * COMPLETE / SKIP
- **********************************************************/
-async function handleAction(status) {
-  const stop = routeData[currentIndex];
-  let note = "";
-
-  if (status === "Skipped") {
-    note = prompt("Reason for skipping?") || "";
   }
 
-  const payload = {
-    rowID: stop.actualRow,
-    status,
-    note,
-    stopName: stop.Name,
-    photo: currentPhoto || ""
-  };
-
-  await fetch(scriptURL, {
-    method: "POST",
-    mode: "no-cors",
-    body: JSON.stringify(payload),
-    headers: { "Content-Type": "application/json" }
-  });
-
-  currentIndex++;
-  if (currentIndex < routeData.length) {
-    updateUI();
-  } else {
-    stopDistanceTracking();
-    document.getElementById("syncStatus").innerText = "Route complete";
-    document.getElementById("app").classList.add("hidden");
+  function haversineMiles(lat1, lon1, lat2, lon2) {
+    const R = 3958.8;
+    const toRad = d => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
-}
 
-/**********************************************************
- * INIT
- **********************************************************/
-fetchRoute();
+  /**********************************************************
+   * UI UPDATE
+   **********************************************************/
+  function updateUI() {
+    const stop = routeData[currentIndex];
+
+    document.getElementById('stopName').innerText = stop.Name;
+    document.getElementById('addressText').innerText = stop.Address;
+    document.getElementById('progressText').innerText = `Stop ${currentIndex + 1} of ${routeData.length}`;
+
+    // Back button
+    const backButton = document.getElementById('backButton');
+    if (currentIndex > 0) backButton.classList.remove('hidden');
+    else backButton.classList.add('hidden');
+
+    // Delivery Note
+    const noteBox = document.getElementById('deliveryNote');
+    const noteText = document.getElementById('deliveryNoteText');
+    const dn = (stop["Delivery Note"] || "").trim();
+    if (dn) {
+      noteText.innerText = dn;
+      noteBox.classList.remove('hidden');
+    } else {
+      noteText.innerText = "";
+      noteBox.classList.add('hidden');
+    }
+
+    // Coordinate-based navigation + distance
+    const lat = Number(stop.lat ?? stop.Lat);
+    const lng = Number(stop.lng ?? stop.Lng);
+
+    if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+      document.getElementById('navLink').href =
+        `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+      startDistanceTracking(lat, lng);
+    } else {
+      document.getElementById('navLink').href =
+        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.Address)}`;
+      stopDistanceTracking();
+    }
+
+    // Clear photo for next stop
+    currentPhoto = null;
+    document.getElementById('photoContainer').classList.add('hidden');
+    document.getElementById('cameraInput').value = '';
+  }
+
+  /**********************************************************
+   * ACTIONS
+   **********************************************************/
+  async function handleAction(status) {
+    const stop = routeData[currentIndex];
+    let note = "";
+
+    if (status === 'Skipped') {
+      note = prompt("Reason for skipping?") || "No reason provided";
+    }
+
+    // Save status locally
+    stopStatuses[stop.actualRow] = status;
+    localStorage.setItem('stopStatuses', JSON.stringify(stopStatuses));
+
+    if (isOnline) {
+      document.getElementById('syncStatus').innerText = "☁️ Syncing...";
+
+      try {
+        if (currentPhoto) {
+          const payload = {
+            rowID: stop.actualRow,
+            status: status,
+            note: note,
+            stopName: stop.Name,
+            photo: currentPhoto
+          };
+
+          await fetch(scriptURL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify(payload),
+            headers: { 'Content-Type': 'application/json' }
+          });
+
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          document.getElementById('syncStatus').innerText = "✅ Photo Uploaded";
+        } else {
+          const updateURL = `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`;
+          await fetch(updateURL, { mode: 'no-cors' });
+          await new Promise(resolve => setTimeout(resolve, 400));
+          document.getElementById('syncStatus').innerText = "✅ Sent to Sheet";
+        }
+      } catch (e) {
+        console.error('Sync error:', e);
+
+        if (!currentPhoto) {
+          pendingUpdates.push({
+            url: `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`,
+            rowID: stop.actualRow,
+            status: status,
+            note: note,
+            stopName: stop.Name
+          });
+          savePendingUpdates();
+        }
+
+        document.getElementById('syncStatus').innerText =
+          currentPhoto ? "⚠️ Photo Upload Failed" : "⚠️ Queued for Sync";
+      }
+    } else {
+      if (currentPhoto) {
+        alert("⚠️ Cannot upload photo while offline. Photo will be lost. Please reconnect and try again.");
+      }
+
+      pendingUpdates.push({
+        url: `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`,
+        rowID: stop.actualRow,
+        status: status,
+        note: note,
+        stopName: stop.Name
+      });
+      savePendingUpdates();
+      document.getElementById('syncStatus').innerText = "💾 Saved Locally (no photo)";
+    }
+
+    currentIndex++;
+    if (currentIndex < routeData.length) {
+      updateUI();
+    } else {
+      stopDistanceTracking();
+      document.getElementById('app').classList.add('hidden');
+      document.getElementById('finished').classList.remove('hidden');
+
+      if (pendingUpdates.length > 0) {
+        document.getElementById('syncStatus').innerText =
+          "✅ Route Complete - " + pendingUpdates.length + " updates pending";
+      } else {
+        document.getElementById('syncStatus').innerText = "✅ Final Stop Synced";
+      }
+    }
+  }
+
+  /**********************************************************
+   * INIT
+   **********************************************************/
+  loadPendingUpdates();
+  updateOnlineStatus();
+  fetchRoute();
+
+  setInterval(() => {
+    if (isOnline && pendingUpdates.length > 0) {
+      syncPendingUpdates();
+    }
+  }, 30000);
 </script>
 
 </body>
