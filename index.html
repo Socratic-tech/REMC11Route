@@ -9,8 +9,8 @@
 <meta name="theme-color" content="#2563eb">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-
 <link rel="icon" href="/icon-192.png">
+
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
@@ -29,64 +29,68 @@ body { background:#1a202c; color:white; font-family:sans-serif; }
 <body class="flex flex-col min-h-screen">
 
 <header class="bg-blue-700 p-4 text-center shadow-lg">
-<h1 class="text-xl font-bold">REMC FIELD TOOL</h1>
-<p id="syncStatus" class="text-xs mt-1">Starting…</p>
+  <h1 class="text-xl font-bold">REMC FIELD TOOL</h1>
+  <p id="syncStatus" class="text-xs mt-1">Starting…</p>
 </header>
 
 <main class="flex-grow p-6 flex flex-col items-center">
 
 <div id="loading" class="text-center">
-<p>Loading route…</p>
+  <p>Loading route…</p>
 </div>
 
 <!-- LIST VIEW -->
 <div id="listView" class="hidden w-full max-w-2xl">
-<div class="flex justify-between mb-4">
-<h2 class="text-2xl font-bold">Today’s Stops</h2>
-<button onclick="showCurrentStop()" class="bg-blue-600 px-4 py-2 rounded">Return</button>
-</div>
-<div id="stopsList" class="space-y-3"></div>
+  <div class="flex justify-between mb-4">
+    <h2 class="text-2xl font-bold">Today’s Stops</h2>
+    <button onclick="showCurrentStop()" class="bg-blue-600 px-4 py-2 rounded">Return</button>
+  </div>
+  <div id="stopsList" class="space-y-3"></div>
 </div>
 
 <!-- STOP VIEW -->
 <div id="app" class="hidden w-full max-w-md space-y-6">
 
-<div class="flex justify-between">
-<button onclick="showListView()" class="bg-gray-700 px-4 py-2 rounded">📋 View Stops</button>
-<button id="backButton" onclick="goBack()" class="hidden bg-gray-700 px-4 py-2 rounded">⬅ Back</button>
-</div>
+  <div class="flex justify-between">
+    <button onclick="showListView()" class="bg-gray-700 px-4 py-2 rounded">📋 View Stops</button>
+    <button id="backButton" onclick="goBack()" class="hidden bg-gray-700 px-4 py-2 rounded">⬅ Back</button>
+  </div>
 
-<div class="bg-gray-800 p-6 rounded-xl text-center btn-shadow">
-<p id="progressText" class="text-sm text-blue-400"></p>
-<h2 id="stopName" class="text-3xl font-bold mb-2">---</h2>
-<p id="addressText" class="text-gray-400 mb-4">---</p>
+  <div class="bg-gray-800 p-6 rounded-xl text-center btn-shadow">
+    <p id="progressText" class="text-sm text-blue-400"></p>
+    <h2 id="stopName" class="text-3xl font-bold mb-2">---</h2>
+    <p id="addressText" class="text-gray-400 mb-4">---</p>
 
-<a id="navLink" target="_blank"
-class="block bg-blue-600 py-3 rounded-xl font-bold mb-4">
-🗺 OPEN NAVIGATION
-</a>
+    <a id="navLink" target="_blank"
+       class="block bg-blue-600 py-3 rounded-xl font-bold mb-4">
+       🗺 OPEN NAVIGATION
+    </a>
 
-<button onclick="takePhoto()" class="bg-purple-600 py-3 rounded-xl w-full font-bold">
-📷 TAKE PHOTO
-</button>
+    <button onclick="takePhoto()" class="bg-purple-600 py-3 rounded-xl w-full font-bold">
+      📷 TAKE PHOTO
+    </button>
 
-<div id="photoContainer" class="hidden mt-4">
-<img id="photoPreview">
-<p class="text-green-400 text-sm mt-1">✓ Photo ready</p>
-</div>
+    <div id="photoContainer" class="hidden mt-4">
+      <img id="photoPreview">
+      <p class="text-green-400 text-sm mt-1">✓ Photo ready</p>
+    </div>
 
-<input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden">
-</div>
+    <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden">
+  </div>
 
-<div class="grid grid-cols-2 gap-4">
-<button onclick="handleAction('Complete')" class="bg-green-600 py-6 rounded-xl font-bold">✅ DONE</button>
-<button onclick="handleAction('Skipped')" class="bg-red-600 py-6 rounded-xl font-bold">❌ SKIP</button>
-</div>
+  <div class="grid grid-cols-2 gap-4">
+    <button onclick="handleAction('Complete')" class="bg-green-600 py-6 rounded-xl font-bold">
+      ✅ DONE
+    </button>
+    <button onclick="handleAction('Skipped')" class="bg-red-600 py-6 rounded-xl font-bold">
+      ❌ SKIP
+    </button>
+  </div>
 
 </div>
 
 <div id="finished" class="hidden text-center space-y-4">
-<h2 class="text-4xl font-bold">Route Complete</h2>
+  <h2 class="text-4xl font-bold">Route Complete</h2>
 </div>
 
 </main>
@@ -102,17 +106,14 @@ const el = {
   listView: document.getElementById('listView'),
   finished: document.getElementById('finished'),
   stopsList: document.getElementById('stopsList'),
-
   stopName: document.getElementById('stopName'),
   addressText: document.getElementById('addressText'),
   progressText: document.getElementById('progressText'),
   navLink: document.getElementById('navLink'),
   backButton: document.getElementById('backButton'),
-
   cameraInput: document.getElementById('cameraInput'),
   photoPreview: document.getElementById('photoPreview'),
   photoContainer: document.getElementById('photoContainer'),
-
   syncStatus: document.getElementById('syncStatus')
 };
 
@@ -201,11 +202,9 @@ function renderStopsList() {
     };
 
     div.innerHTML = `
-      <div>
-        <p class="text-sm text-blue-400">Stop ${i + 1}</p>
-        <h3 class="font-bold">${s.Name}</h3>
-        <p class="text-sm text-gray-400">${s.Address}</p>
-      </div>
+      <p class="text-sm text-blue-400">Stop ${i + 1}</p>
+      <h3 class="font-bold">${s.Name}</h3>
+      <p class="text-sm text-gray-400">${s.Address}</p>
     `;
     el.stopsList.appendChild(div);
   });
@@ -216,7 +215,8 @@ function updateUI() {
   const s = routeData[currentIndex];
   el.stopName.innerText = s.Name;
   el.addressText.innerText = s.Address;
-  el.navLink.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.Address)}`;
+  el.navLink.href =
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.Address)}`;
   el.progressText.innerText = `Stop ${currentIndex + 1} of ${routeData.length}`;
   el.backButton.classList.toggle('hidden', currentIndex === 0);
   el.photoContainer.classList.add('hidden');
@@ -224,16 +224,53 @@ function updateUI() {
   el.cameraInput.value = '';
 }
 
+/* ================= SHEET UPDATE ================= */
+async function sendUpdateToSheet(stop, status, note = "") {
+  try {
+    if (currentPhoto) {
+      await fetch(scriptURL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rowID: stop.actualRow,
+          status,
+          note,
+          stopName: stop.Name,
+          photo: currentPhoto
+        })
+      });
+    } else {
+      await fetch(
+        `${scriptURL}?rowID=${stop.actualRow}&status=${encodeURIComponent(status)}&note=${encodeURIComponent(note)}`,
+        { mode: "no-cors" }
+      );
+    }
+    el.syncStatus.innerText = "✅ Sent to Sheet";
+  } catch (e) {
+    console.error(e);
+    el.syncStatus.innerText = "⚠️ Update failed";
+  }
+}
+
 /* ================= ACTION ================= */
 function handleAction(status) {
-  const s = routeData[currentIndex];
-  stopStatuses[s.actualRow] = status;
+  const stop = routeData[currentIndex];
+  let note = "";
+
+  if (status === "Skipped") {
+    note = prompt("Reason for skipping?") || "";
+  }
+
+  stopStatuses[stop.actualRow] = status;
   localStorage.setItem('stopStatuses', JSON.stringify(stopStatuses));
 
   currentIndex++;
   currentIndex < routeData.length
     ? updateUI()
     : (el.app.classList.add('hidden'), el.finished.classList.remove('hidden'));
+
+  sendUpdateToSheet(stop, status, note);
 }
 
 /* ================= FETCH ================= */
@@ -248,8 +285,8 @@ async function fetchRoute() {
       : el.finished.classList.remove('hidden');
     el.syncStatus.innerText = "✅ Ready";
   } catch (e) {
-    el.loading.innerHTML = "<p class='text-red-400'>Failed to load route</p>";
     console.error(e);
+    el.loading.innerHTML = "<p class='text-red-400'>Failed to load route</p>";
   }
 }
 
