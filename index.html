@@ -91,7 +91,23 @@ body { background:#1a202c; color:white; font-family:sans-serif; }
 
 <div id="finished" class="hidden text-center space-y-4">
   <h2 class="text-4xl font-bold">Route Complete</h2>
+  <p class="text-gray-400">All stops for today have been updated.</p>
+
+  <button
+    onclick="showListView()"
+    class="bg-blue-600 px-6 py-3 rounded-lg font-bold"
+  >
+    📋 View All Stops
+  </button>
+
+  <button
+    onclick="location.reload()"
+    class="bg-gray-700 px-6 py-2 rounded-lg"
+  >
+    🔄 Refresh Route
+  </button>
 </div>
+
 
 </main>
 
