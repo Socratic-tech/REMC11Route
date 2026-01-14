@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>REMC Daily Route Review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_MAPS_KEY"></script>
+
+<style>
+#map { height: 80vh; }
+</style>
+</head>
+
+<body class="bg-gray-100 text-gray-900">
+
+<header class="bg-blue-700 text-white p-4 text-center">
+  <h1 class="text-xl font-bold">Daily Route Review</h1>
+</header>
+
+<div class="p-4 flex gap-4 items-center">
+  <input type="date" id="datePicker" class="border p-2 rounded">
+  <button onclick="loadData()" class="bg-blue-600 text-white px-4 py-2 rounded">
+    Load Day
+  </button>
+</div>
+
+<div id="map"></div>
+
+<script>
+const scriptURL = "https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec";
+
+let map;
+let markers = [];
+
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    zoom: 10,
+    center: { lat: 42.1, lng: -86.4 } // Berrien-ish default
+  });
+}
+
+function clearMarkers() {
+  markers.forEach(m => m.setMap(null));
+  markers = [];
+}
+
+async function loadData() {
+  clearMarkers();
+
+  const date = document.getElementById("datePicker").value;
+  if (!date) return alert("Pick a date");
+
+  const res = await fetch(`${scriptURL}?mode=dailySummary&date=${date}`);
+  const data = await res.json();
+
+  data.forEach(stop => {
+    const marker = new google.maps.Marker({
+      position: { lat: stop.lat, lng: stop.lng },
+      map,
+      icon: stop.status === "Complete"
+        ? "http://maps.google.com/mapfiles/ms/icons/green-dot.png"
+        : "http://maps.google.com/mapfiles/ms/icons/red-dot.png"
+    });
+
+    const info = new google.maps.InfoWindow({
+      content: `
+        <strong>${stop.name}</strong><br>
+        ${stop.address}<br>
+        Status: ${stop.status}<br>
+        ${stop.photo ? `<a href="${stop.photo}" target="_blank">📷 View Photo</a>` : "No photo"}
+      `
+    });
+
+    marker.addListener("click", () => info.open(map, marker));
+    markers.push(marker);
+  });
+}
+
+window.onload = initMap;
+</script>
+
+</body>
+</html>
