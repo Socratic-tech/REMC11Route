@@ -83,6 +83,8 @@ async function loadData() {
 
   data.forEach(stop => {
     if (!stop.lat || !stop.lng) return;
+    console.warn("Missing coordinates:", stop);
+  return;
 
     const color = stop.status === "Complete" ? "green" : "red";
 
