@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>REMC Route Tool</title>
+
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="REMC Routes">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body {
+      background-color: #1a202c;
+      color: white;
+      font-family: system-ui, sans-serif;
+    }
+    .btn-shadow {
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,.5);
+    }
+    .hidden {
+      display: none;
+    }
+    #app {
+      transition: opacity 0.3s ease;
+    }
+  </style>
+</head>
+
+<body class="flex flex-col min-h-screen">
+
+<header class="bg-blue-700 p-4 text-center shadow-lg sticky top-0 z-50">
+  <h1 class="text-2xl font-bold tracking-tight">REMC FIELD TOOL</h1>
+  <div class="flex justify-center items-center gap-2 mt-1 text-blue-200 text-sm">
+    <div class="w-2 h-2 bg-blue-300 rounded-full animate-pulse"></div>
+    <p id="syncStatus">Loading…</p>
+  </div>
+</header>
+
+<main class="flex-grow flex flex-col items-center p-6">
+
+  <!-- LOADING -->
+  <div id="loading" class="text-center">
+    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+    <p class="text-lg">Loading Today's Route…</p>
+  </div>
+
+  <!-- STOP VIEW -->
+  <div id="app" class="hidden w-full max-w-md space-y-6 opacity-0">
+
+    <div class="bg-gray-800 rounded-2xl p-6 border border-gray-700 btn-shadow text-center relative overflow-hidden">
+      <div class="absolute inset-0 bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800 opacity-70"></div>
+      <div class="relative z-10">
+        <div class="w-full bg-gray-700 rounded-full h-2 mb-3">
+          <div id="progressBar" class="bg-blue-500 h-2 rounded-full" style="width: 0%;"></div>
+        </div>
+
+        <p id="progressText" class="text-blue-400 text-sm font-bold mb-2 uppercase tracking-widest">Stop --</p>
+        <h2 id="stopName" class="text-3xl font-extrabold mb-2">---</h2>
+        <p id="addressText" class="text-gray-400 text-lg mb-2">---</p>
+
+        <div id="deliveryNote" class="hidden bg-yellow-900/40 border border-yellow-700 text-yellow-200 text-sm rounded-lg p-3 mt-3 text-left">
+          <strong>📦 Delivery Note</strong>
+          <div id="deliveryNoteText" class="mt-1"></div>
+        </div>
+
+        <a id="navLink" href="#" target="_blank" class="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-xl w-full text-xl transition transform active:scale-95 btn-shadow mt-4" aria-label="Open Navigation">
+          🗺️ <span>Open Navigation</span>
+        </a>
+
+        <button onclick="takePhoto()" id="photoButton" class="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-xl w-full text-lg transition transform active:scale-95 btn-shadow mt-4" aria-label="Take Photo">
+          📷 <span>Take Photo</span>
+        </button>
+
+        <div id="photoContainer" class="hidden mt-4">
+          <img id="photoPreview" class="rounded-lg w-full object-cover">
+          <button onclick="takePhoto()" class="mt-2 text-sm text-blue-400 underline">Retake Photo</button>
+          <p class="text-green-400 text-sm mt-1">✓ Photo ready</p>
+        </div>
+
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden">
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <button onclick="handleAction('Complete')" class="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 py-6 rounded-xl font-bold text-xl w-full btn-shadow transition transform active:scale-95" aria-label="Mark Stop Complete">
+        ✅ <span>Done</span>
+      </button>
+      <button onclick="handleAction('Skipped')" class="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 py-6 rounded-xl font-bold text-xl w-full btn-shadow transition transform active:scale-95" aria-label="Skip Stop">
+        ❌ <span>Skip</span>
+      </button>
+    </div>
+  </div>
+
+</main>
+
+<div id="syncIndicator" class="fixed bottom-4 right-4 w-4 h-4 bg-yellow-400 rounded-full shadow-lg"></div>
+
+<script>
+const scriptURL = "https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec";
+let routeData = [];
+let currentIndex = 0;
+let currentPhoto = null;
+
+async function fetchRoute() {
+  try {
+    const res = await fetch(scriptURL);
+    routeData = await res.json();
+    document.getElementById("loading").classList.add("hidden");
+    if (!routeData.length) {
+      document.getElementById("syncStatus").innerText = "No stops today";
+      return;
+    }
+    document.getElementById("app").classList.remove("hidden");
+    fadeInApp();
+    updateUI();
+  } catch (e) {
+    document.getElementById("syncStatus").innerText = "Error loading route";
+  }
+}
+
+function fadeInApp() {
+  const app = document.getElementById("app");
+  app.style.opacity = 0;
+  setTimeout(() => { app.style.opacity = 1; }, 100);
+}
+
+function updateUI() {
+  const stop = routeData[currentIndex];
+  document.getElementById("stopName").innerText = stop.Name;
+  document.getElementById("addressText").innerText = stop.Address;
+  document.getElementById("progressText").innerText = `Stop ${currentIndex + 1} of ${routeData.length}`;
+  document.getElementById("progressBar").style.width = ((currentIndex + 1) / routeData.length) * 100 + "%";
+  document.getElementById("navLink").href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.Address)}`;
+  const noteBox = document.getElementById("deliveryNote");
+  const noteText = document.getElementById("deliveryNoteText");
+  const deliveryNote = stop["Delivery Note"] || stop["DeliveryNote"] || "";
+  if (deliveryNote && deliveryNote.trim() !== "") {
+    noteText.innerText = deliveryNote;
+    noteBox.classList.remove("hidden");
+  } else {
+    noteText.innerText = "";
+    noteBox.classList.add("hidden");
+  }
+  currentPhoto = null;
+  document.getElementById("photoContainer").classList.add("hidden");
+  document.getElementById("cameraInput").value = "";
+}
+
+function takePhoto() {
+  document.getElementById("cameraInput").click();
+}
+
+document.getElementById("cameraInput").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    currentPhoto = ev.target.result;
+    document.getElementById("photoPreview").src = currentPhoto;
+    document.getElementById("photoContainer").classList.remove("hidden");
+  };
+  reader.readAsDataURL(file);
+});
+
+async function handleAction(status) {
+  const stop = routeData[currentIndex];
+  let note = "";
+  if (status === "Skipped") note = prompt("Reason for skipping?") || "";
+  const payload = {
+    rowID: stop.actualRow,
+    status,
+    note,
+    stopName: stop.Name,
+    photo: currentPhoto || ""
+  };
+  document.getElementById("syncIndicator").classList.replace("bg-green-400", "bg-yellow-400");
+  await fetch(scriptURL, {
+    method: "POST",
+    mode: "no-cors",
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json" }
+  });
+  document.getElementById("syncIndicator").classList.replace("bg-yellow-400", "bg-green-400");
+  currentIndex++;
+  if (currentIndex < routeData.length) {
+    fadeInApp();
+    updateUI();
+  } else {
+    document.getElementById("syncStatus").innerText = "Route complete";
+    document.getElementById("app").classList.add("hidden");
+  }
+}
+
+fetchRoute();
+</script>
+
+</body>
+</html>
