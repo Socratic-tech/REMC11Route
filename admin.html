@@ -1,117 +1,197 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>REMC Daily Route Review</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <title>REMC Route – Admin Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<!-- Leaflet -->
-<link
-  rel="stylesheet"
-  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
-<script
-  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-</script>
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+    }
 
-<style>
-#map { height: 80vh; }
-</style>
+    header {
+      background: #1e293b;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header h1 {
+      font-size: 18px;
+      margin: 0;
+      flex-grow: 1;
+    }
+
+    header input {
+      background: #020617;
+      border: 1px solid #334155;
+      color: white;
+      padding: 6px 8px;
+      border-radius: 6px;
+    }
+
+    #status {
+      padding: 8px 16px;
+      background: #020617;
+      font-size: 14px;
+    }
+
+    #map {
+      height: calc(100vh - 96px);
+      width: 100%;
+    }
+
+    .leaflet-popup-content {
+      font-size: 14px;
+    }
+
+    .popup-title {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .popup-photo img {
+      max-width: 240px;
+      margin-top: 6px;
+      border-radius: 6px;
+    }
+  </style>
 </head>
+<body>
 
-<body class="bg-gray-100 text-gray-900">
-
-<header class="bg-blue-700 text-white p-4 text-center">
-  <h1 class="text-xl font-bold">Daily Route Review</h1>
+<header>
+  <h1>REMC Route – Admin Map</h1>
+  <input type="date" id="datePicker" />
 </header>
 
-<div class="p-4 flex gap-4 items-center">
-  <input type="date" id="datePicker" class="border p-2 rounded">
-  <button onclick="loadData()" class="bg-blue-600 text-white px-4 py-2 rounded">
-    Load Day
-  </button>
-</div>
-
+<div id="status">Loading…</div>
 <div id="map"></div>
 
 <script>
-const scriptURL =
-  "https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec";
+  /**********************************************************
+   * CONFIG – YOUR LIVE APPS SCRIPT ENDPOINT
+   **********************************************************/
+  const SCRIPT_URL =
+    "https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec";
 
-function todayISO() {
-  const d = new Date();
-  return d.toISOString().split("T")[0];
-}
+  let map;
+  let markers = [];
 
+  function todayISO() {
+    return new Date().toISOString().split("T")[0];
+  }
+
+  function clearMarkers() {
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+  }
+
+  function showStatus(msg) {
+    document.getElementById("status").textContent = msg;
+  }
+
+  function loadData() {
+    const date = document.getElementById("datePicker").value;
+    if (!date) return;
+
+    showStatus("Loading route…");
+    clearMarkers();
+
+    fetch(`${SCRIPT_URL}?mode=dailySummary&date=${date}`)
+      .then(r => r.json())
+      .then(stops => {
+        console.log("Stops received:", stops);
+
+        if (!Array.isArray(stops) || stops.length === 0) {
+          showStatus("No routes for this date.");
+          return;
+        }
+
+        let bounds = [];
+
+        stops.forEach(stop => {
+          // Normalize coordinate casing
+          const lat = Number(stop.lat ?? stop.Lat);
+          const lng = Number(stop.lng ?? stop.Lng);
+
+          // Skip ONLY invalid coordinates
+          if (
+            !Number.isFinite(lat) ||
+            !Number.isFinite(lng) ||
+            lat === 0 ||
+            lng === 0
+          ) {
+            console.warn("Skipping invalid coordinates:", stop);
+            return;
+          }
+
+          const popup = `
+            <div class="popup">
+              <div class="popup-title">${stop.name}</div>
+              <div>${stop.address}</div>
+              <div>Status: ${stop.status}</div>
+              ${
+                stop.photo
+                  ? `<div class="popup-photo">
+                       <a href="${stop.photo}" target="_blank">
+                         <img src="${stop.photo}" />
+                       </a>
+                     </div>`
+                  : ""
+              }
+            </div>
+          `;
+
+          const marker = L.marker([lat, lng])
+            .addTo(map)
+            .bindPopup(popup);
+
+          markers.push(marker);
+          bounds.push([lat, lng]);
+        });
+
+        if (bounds.length === 0) {
+          showStatus("No mappable stops for this date.");
+          return;
+        }
+
+        map.fitBounds(bounds, { padding: [40, 40] });
+        showStatus(`${bounds.length} stop(s) loaded.`);
+      })
+      .catch(err => {
+        console.error(err);
+        showStatus("Error loading route data.");
+      });
+  }
+
+  /**********************************************************
+   * INIT
+   **********************************************************/
   window.onload = () => {
-  document.getElementById("datePicker").value = todayISO();
-  loadData(); // 👈 auto-load today
-};
+    map = L.map("map").setView([41.9, -86.3], 10);
 
-let map = L.map("map").setView([42.1, -86.4], 10);
-let markers = [];
-
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: "© OpenStreetMap contributors"
-}).addTo(map);
-
-function clearMarkers() {
-  markers.forEach(m => map.removeLayer(m));
-  markers = [];
-}
-
-async function loadData() {
-  clearMarkers();
-
-  const date = document.getElementById("datePicker").value;
-  if (!date) {
-    alert("Pick a date");
-    return;
-  }
-
-  const res = await fetch(`${scriptURL}?mode=dailySummary&date=${date}`);
-  const data = await res.json();
-
-  if (data.length === 0) {
-    alert("No stops for this date");
-    return;
-  }
-
-  const bounds = [];
-
-  data.forEach(stop => {
-    if (!stop.lat || !stop.lng) return;
-    console.warn("Missing coordinates:", stop);
-  return;
-
-    const color = stop.status === "Complete" ? "green" : "red";
-
-    const marker = L.circleMarker([stop.lat, stop.lng], {
-      radius: 8,
-      color,
-      fillColor: color,
-      fillOpacity: 0.9
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors"
     }).addTo(map);
 
-    marker.bindPopup(`
-      <strong>${stop.name}</strong><br>
-      ${stop.address}<br>
-      Status: ${stop.status}<br>
-      ${stop.photo
-        ? `<a href="${stop.photo}" target="_blank">📷 View Photo</a>`
-        : "No photo"}
-    `);
+    const picker = document.getElementById("datePicker");
+    picker.value = todayISO();
+    picker.addEventListener("change", loadData);
 
-    markers.push(marker);
-    bounds.push([stop.lat, stop.lng]);
-  });
-
-  if (bounds.length) {
-    map.fitBounds(bounds, { padding: [30, 30] });
-  }
-}
+    loadData(); // auto-load today
+  };
 </script>
 
 </body>
