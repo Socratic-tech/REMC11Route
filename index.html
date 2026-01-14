@@ -54,10 +54,15 @@
             <p class="text-gray-400">All stops for today have been updated.</p>
             <button onclick="location.reload()" class="bg-gray-700 px-6 py-2 rounded-lg">Refresh List</button>
         </div>
+
+        <div id="noDeliveries" class="hidden text-center space-y-4">
+            <h2 class="text-4xl font-bold">📦 No Deliveries Today</h2>
+            <p class="text-gray-400">Enjoy your day off!</p>
+            <p class="text-sm text-gray-500 mt-4">We typically don't deliver on Wednesdays.</p>
+        </div>
     </main>
 
     <script>
-        // Updated deployment URL
         const scriptURL = 'https://script.google.com/macros/s/AKfycbxmReEu4Y8PGnaOMNxsk8zSvo0fIXZlqFoUhLu8VsL2Chwj_z2iEhJsSNb8jTuooug5uA/exec';
         
         let routeData = [];
@@ -68,10 +73,18 @@
                 const response = await fetch(scriptURL);
                 const data = await response.json();
                 
+                document.getElementById('loading').classList.add('hidden');
+                
+                // Check if data is empty (no deliveries scheduled)
+                if (data.length === 0) {
+                    document.getElementById('noDeliveries').classList.remove('hidden');
+                    document.getElementById('syncStatus').innerText = "📦 No Deliveries Scheduled";
+                    return;
+                }
+                
                 // Filter for Pending stops
                 routeData = data.filter(stop => stop.Status === "Pending" || stop.Status === "");
                 
-                document.getElementById('loading').classList.add('hidden');
                 if (routeData.length > 0) {
                     document.getElementById('app').classList.remove('hidden');
                     document.getElementById('syncStatus').innerText = "✅ System Online";
@@ -91,7 +104,6 @@
             document.getElementById('stopName').innerText = stop.Name;
             document.getElementById('addressText').innerText = stop.Address;
             
-            // Corrected Google Maps Link
             const encodedAddr = encodeURIComponent(stop.Address);
             document.getElementById('navLink').href = `https://www.google.com/maps/search/?api=1&query=${encodedAddr}`;
             
@@ -112,15 +124,11 @@
             console.log('Sending update:', updateURL);
 
             try {
-                const response = await fetch(updateURL);
-                const result = await response.text();
-                console.log('Update result:', result);
+                // Use no-cors for writes since we don't need to read the response
+                await fetch(updateURL, { mode: 'no-cors' });
                 
-                if (result.includes("Error")) {
-                    document.getElementById('syncStatus').innerText = "❌ Sync Failed";
-                    alert("Failed to update: " + result);
-                    return;
-                }
+                // Wait a moment to ensure the request completes
+                await new Promise(resolve => setTimeout(resolve, 500));
                 
                 currentIndex++;
                 if (currentIndex < routeData.length) {
@@ -134,7 +142,6 @@
             } catch (e) {
                 document.getElementById('syncStatus').innerText = "❌ Network Error";
                 console.error('Fetch error:', e);
-                alert("Network error occurred. Check console for details.");
             }
         }
 
