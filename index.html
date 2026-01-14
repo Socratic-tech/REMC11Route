@@ -270,7 +270,8 @@ function handleAction(status) {
   currentIndex < routeData.length
     ? updateUI()
     : (el.app.classList.add('hidden'), el.finished.classList.remove('hidden'));
-
+const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+const filenameStopName = `${today}_${stop.Name}`;
   sendUpdateToSheet(stop, status, note, photoSnapshot);
 }
 
