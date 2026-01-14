@@ -5,8 +5,16 @@
 <title>REMC Daily Route Review</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- Leaflet -->
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
+
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_MAPS_KEY"></script>
 
 <style>
 #map { height: 80vh; }
@@ -29,20 +37,18 @@
 <div id="map"></div>
 
 <script>
-const scriptURL = "https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec";
+const scriptURL =
+  "https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec";
 
-let map;
+let map = L.map("map").setView([42.1, -86.4], 10);
 let markers = [];
 
-function initMap() {
-  map = new google.maps.Map(document.getElementById("map"), {
-    zoom: 10,
-    center: { lat: 42.1, lng: -86.4 } // Berrien-ish default
-  });
-}
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap contributors"
+}).addTo(map);
 
 function clearMarkers() {
-  markers.forEach(m => m.setMap(null));
+  markers.forEach(m => map.removeLayer(m));
   markers = [];
 }
 
@@ -50,35 +56,50 @@ async function loadData() {
   clearMarkers();
 
   const date = document.getElementById("datePicker").value;
-  if (!date) return alert("Pick a date");
+  if (!date) {
+    alert("Pick a date");
+    return;
+  }
 
   const res = await fetch(`${scriptURL}?mode=dailySummary&date=${date}`);
   const data = await res.json();
 
+  if (data.length === 0) {
+    alert("No stops for this date");
+    return;
+  }
+
+  const bounds = [];
+
   data.forEach(stop => {
-    const marker = new google.maps.Marker({
-      position: { lat: stop.lat, lng: stop.lng },
-      map,
-      icon: stop.status === "Complete"
-        ? "http://maps.google.com/mapfiles/ms/icons/green-dot.png"
-        : "http://maps.google.com/mapfiles/ms/icons/red-dot.png"
-    });
+    if (!stop.lat || !stop.lng) return;
 
-    const info = new google.maps.InfoWindow({
-      content: `
-        <strong>${stop.name}</strong><br>
-        ${stop.address}<br>
-        Status: ${stop.status}<br>
-        ${stop.photo ? `<a href="${stop.photo}" target="_blank">📷 View Photo</a>` : "No photo"}
-      `
-    });
+    const color = stop.status === "Complete" ? "green" : "red";
 
-    marker.addListener("click", () => info.open(map, marker));
+    const marker = L.circleMarker([stop.lat, stop.lng], {
+      radius: 8,
+      color,
+      fillColor: color,
+      fillOpacity: 0.9
+    }).addTo(map);
+
+    marker.bindPopup(`
+      <strong>${stop.name}</strong><br>
+      ${stop.address}<br>
+      Status: ${stop.status}<br>
+      ${stop.photo
+        ? `<a href="${stop.photo}" target="_blank">📷 View Photo</a>`
+        : "No photo"}
+    `);
+
     markers.push(marker);
+    bounds.push([stop.lat, stop.lng]);
   });
-}
 
-window.onload = initMap;
+  if (bounds.length) {
+    map.fitBounds(bounds, { padding: [30, 30] });
+  }
+}
 </script>
 
 </body>
