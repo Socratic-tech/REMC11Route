@@ -9,6 +9,9 @@
         body { background-color: #1a202c; color: white; font-family: sans-serif; }
         .btn-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); }
         .hidden { display: none; }
+        .offline-badge { background-color: #f59e0b; }
+        .online-badge { background-color: #10b981; }
+        #photoPreview { max-width: 100%; border-radius: 8px; margin-top: 10px; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -16,6 +19,9 @@
     <header class="bg-blue-700 p-4 text-center shadow-lg">
         <h1 class="text-xl font-bold tracking-tight">REMC FIELD TOOL</h1>
         <p id="syncStatus" class="text-xs text-blue-200 mt-1">Checking connection...</p>
+        <div id="offlineIndicator" class="hidden mt-2 inline-block px-3 py-1 rounded-full text-xs font-bold">
+            📶 OFFLINE MODE - Changes will sync when online
+        </div>
     </header>
 
     <main class="flex-grow flex flex-col items-center justify-center p-6">
@@ -32,9 +38,24 @@
                 <p id="addressText" class="text-gray-400 text-lg mb-6">---</p>
                 
                 <a id="navLink" href="#" target="_blank" 
-                   class="inline-block bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-xl w-full text-xl transition transform active:scale-95 btn-shadow">
+                   class="inline-block bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-xl w-full text-xl transition transform active:scale-95 btn-shadow mb-4">
                     🗺️ OPEN NAVIGATION
                 </a>
+
+                <!-- Camera Button -->
+                <button onclick="takePhoto()" 
+                        class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-xl w-full text-lg transition transform active:scale-95 btn-shadow">
+                    📷 TAKE PHOTO
+                </button>
+                
+                <!-- Photo Preview -->
+                <div id="photoContainer" class="hidden mt-4">
+                    <img id="photoPreview" src="" alt="Photo preview">
+                    <p class="text-green-400 text-sm mt-2">✓ Photo ready to upload</p>
+                </div>
+                
+                <!-- Hidden file input for camera -->
+                <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden">
             </div>
 
             <div class="grid grid-cols-2 gap-4">
@@ -46,6 +67,10 @@
                         class="bg-red-600 hover:bg-red-500 py-6 rounded-xl font-bold text-xl btn-shadow transition transform active:scale-95">
                     ❌ SKIP
                 </button>
+            </div>
+            
+            <div id="pendingSync" class="hidden bg-yellow-600 rounded-lg p-3 text-center text-sm">
+                <span id="pendingCount">0</span> updates waiting to sync
             </div>
         </div>
 
@@ -63,26 +88,140 @@
     </main>
 
     <script>
-        const scriptURL = 'https://script.google.com/macros/s/AKfycbyo9ko5B4yuykT5q9iOlSsWEJlnPmFnLM5gr2WJCE6-8f_P4lJ-Cc9UCEQQHJl0ACWcxA/exec';
+        const scriptURL = 'https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec';
         
         let routeData = [];
         let currentIndex = 0;
+        let isOnline = navigator.onLine;
+        let pendingUpdates = [];
+        let currentPhoto = null;
+
+        // Camera functionality
+        function takePhoto() {
+            document.getElementById('cameraInput').click();
+        }
+
+        document.getElementById('cameraInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    currentPhoto = event.target.result;
+                    document.getElementById('photoPreview').src = currentPhoto;
+                    document.getElementById('photoContainer').classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Load pending updates from localStorage
+        function loadPendingUpdates() {
+            const stored = localStorage.getItem('pendingUpdates');
+            if (stored) {
+                pendingUpdates = JSON.parse(stored);
+                updatePendingDisplay();
+            }
+        }
+
+        function savePendingUpdates() {
+            localStorage.setItem('pendingUpdates', JSON.stringify(pendingUpdates));
+            updatePendingDisplay();
+        }
+
+        function updatePendingDisplay() {
+            const pendingDiv = document.getElementById('pendingSync');
+            const countSpan = document.getElementById('pendingCount');
+            if (pendingUpdates.length > 0) {
+                pendingDiv.classList.remove('hidden');
+                countSpan.innerText = pendingUpdates.length;
+            } else {
+                pendingDiv.classList.add('hidden');
+            }
+        }
+
+        function updateOnlineStatus() {
+            isOnline = navigator.onLine;
+            const indicator = document.getElementById('offlineIndicator');
+            const syncStatus = document.getElementById('syncStatus');
+            
+            if (isOnline) {
+                indicator.classList.add('hidden');
+                syncStatus.classList.remove('offline-badge');
+                syncStatus.classList.add('online-badge');
+                syncPendingUpdates();
+            } else {
+                indicator.classList.remove('hidden');
+                indicator.classList.add('offline-badge');
+                syncStatus.innerText = "⚠️ Offline - Changes Saved Locally";
+            }
+        }
+
+        async function syncPendingUpdates() {
+            if (pendingUpdates.length === 0) return;
+            
+            document.getElementById('syncStatus').innerText = "☁️ Syncing " + pendingUpdates.length + " updates...";
+            
+            const updates = [...pendingUpdates];
+            pendingUpdates = [];
+            
+            for (const update of updates) {
+                try {
+                    if (update.photo) {
+                        // Upload with photo
+                        await fetch(scriptURL, {
+                            method: 'POST',
+                            body: JSON.stringify(update),
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    } else {
+                        await fetch(update.url, { mode: 'no-cors' });
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                } catch (e) {
+                    pendingUpdates.push(update);
+                }
+            }
+            
+            savePendingUpdates();
+            
+            if (pendingUpdates.length === 0) {
+                document.getElementById('syncStatus').innerText = "✅ All Updates Synced";
+            } else {
+                document.getElementById('syncStatus').innerText = "⚠️ Some updates failed - will retry";
+            }
+        }
+
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
 
         async function fetchRoute() {
             try {
+                const cached = localStorage.getItem('routeDataCache');
+                if (cached && !navigator.onLine) {
+                    const data = JSON.parse(cached);
+                    routeData = data.filter(stop => stop.Status === "Pending" || stop.Status === "");
+                    document.getElementById('loading').classList.add('hidden');
+                    if (routeData.length > 0) {
+                        document.getElementById('app').classList.remove('hidden');
+                        updateUI();
+                    }
+                    document.getElementById('syncStatus').innerText = "📦 Using Cached Route";
+                    return;
+                }
+
                 const response = await fetch(scriptURL);
                 const data = await response.json();
                 
+                localStorage.setItem('routeDataCache', JSON.stringify(data));
+                
                 document.getElementById('loading').classList.add('hidden');
                 
-                // Check if data is empty (no deliveries scheduled)
                 if (data.length === 0) {
                     document.getElementById('noDeliveries').classList.remove('hidden');
                     document.getElementById('syncStatus').innerText = "📦 No Deliveries Scheduled";
                     return;
                 }
                 
-                // Filter for Pending stops
                 routeData = data.filter(stop => stop.Status === "Pending" || stop.Status === "");
                 
                 if (routeData.length > 0) {
@@ -94,8 +233,20 @@
                     document.getElementById('syncStatus').innerText = "🏁 Route Finished";
                 }
             } catch (e) {
-                document.getElementById('loading').innerHTML = "<h2 class='text-red-500 font-bold'>Connection Error</h2><p>Check your deployment URL.</p>";
-                console.error('Fetch error:', e);
+                const cached = localStorage.getItem('routeDataCache');
+                if (cached) {
+                    const data = JSON.parse(cached);
+                    routeData = data.filter(stop => stop.Status === "Pending" || stop.Status === "");
+                    document.getElementById('loading').classList.add('hidden');
+                    if (routeData.length > 0) {
+                        document.getElementById('app').classList.remove('hidden');
+                        updateUI();
+                    }
+                    document.getElementById('syncStatus').innerText = "⚠️ Offline - Using Cached Route";
+                } else {
+                    document.getElementById('loading').innerHTML = "<h2 class='text-red-500 font-bold'>Connection Error</h2><p>No cached data available.</p>";
+                    console.error('Fetch error:', e);
+                }
             }
         }
 
@@ -108,6 +259,11 @@
             document.getElementById('navLink').href = `https://www.google.com/maps/search/?api=1&query=${encodedAddr}`;
             
             document.getElementById('progressText').innerText = `Stop ${currentIndex + 1} of ${routeData.length}`;
+            
+            // Clear photo for next stop
+            currentPhoto = null;
+            document.getElementById('photoContainer').classList.add('hidden');
+            document.getElementById('cameraInput').value = '';
         }
 
         async function handleAction(status) {
@@ -118,34 +274,87 @@
                 note = prompt("Reason for skipping?") || "No reason provided";
             }
 
-            document.getElementById('syncStatus').innerText = "☁️ Syncing...";
-            
-            const updateURL = `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`;
-            console.log('Sending update:', updateURL);
+            console.log('Processing action:', status);
 
-            try {
-                // Use no-cors for writes since we don't need to read the response
-                await fetch(updateURL, { mode: 'no-cors' });
+            if (isOnline) {
+                document.getElementById('syncStatus').innerText = "☁️ Syncing...";
                 
-                // Wait a moment to ensure the request completes
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                currentIndex++;
-                if (currentIndex < routeData.length) {
-                    updateUI();
-                    document.getElementById('syncStatus').innerText = "✅ Sent to Sheet";
+                try {
+                    if (currentPhoto) {
+                        // Send with photo via POST
+                        const payload = {
+                            rowID: stop.actualRow,
+                            status: status,
+                            note: note,
+                            stopName: stop.Name,
+                            photo: currentPhoto
+                        };
+                        
+                        const response = await fetch(scriptURL, {
+                            method: 'POST',
+                            body: JSON.stringify(payload),
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        
+                        const result = await response.text();
+                        console.log('Upload result:', result);
+                        document.getElementById('syncStatus').innerText = "✅ Photo Uploaded";
+                    } else {
+                        // Send without photo via GET
+                        const updateURL = `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`;
+                        await fetch(updateURL, { mode: 'no-cors' });
+                        document.getElementById('syncStatus').innerText = "✅ Sent to Sheet";
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                } catch (e) {
+                    console.error('Sync error:', e);
+                    pendingUpdates.push({ 
+                        url: `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`,
+                        photo: currentPhoto,
+                        rowID: stop.actualRow,
+                        status: status,
+                        note: note,
+                        stopName: stop.Name
+                    });
+                    savePendingUpdates();
+                    document.getElementById('syncStatus').innerText = "⚠️ Queued for Sync";
+                }
+            } else {
+                pendingUpdates.push({ 
+                    url: `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`,
+                    photo: currentPhoto,
+                    rowID: stop.actualRow,
+                    status: status,
+                    note: note,
+                    stopName: stop.Name
+                });
+                savePendingUpdates();
+                document.getElementById('syncStatus').innerText = "💾 Saved Locally";
+            }
+
+            currentIndex++;
+            if (currentIndex < routeData.length) {
+                updateUI();
+            } else {
+                document.getElementById('app').classList.add('hidden');
+                document.getElementById('finished').classList.remove('hidden');
+                if (pendingUpdates.length > 0) {
+                    document.getElementById('syncStatus').innerText = "✅ Route Complete - " + pendingUpdates.length + " updates pending";
                 } else {
-                    document.getElementById('app').classList.add('hidden');
-                    document.getElementById('finished').classList.remove('hidden');
                     document.getElementById('syncStatus').innerText = "✅ Final Stop Synced";
                 }
-            } catch (e) {
-                document.getElementById('syncStatus').innerText = "❌ Network Error";
-                console.error('Fetch error:', e);
             }
         }
 
+        loadPendingUpdates();
+        updateOnlineStatus();
         fetchRoute();
+        
+        setInterval(() => {
+            if (isOnline && pendingUpdates.length > 0) {
+                syncPendingUpdates();
+            }
+        }, 30000);
     </script>
 </body>
 </html>
