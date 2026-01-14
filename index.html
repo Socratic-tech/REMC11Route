@@ -157,39 +157,32 @@
         }
 
         async function syncPendingUpdates() {
-            if (pendingUpdates.length === 0) return;
-            
-            document.getElementById('syncStatus').innerText = "☁️ Syncing " + pendingUpdates.length + " updates...";
-            
-            const updates = [...pendingUpdates];
-            pendingUpdates = [];
-            
-            for (const update of updates) {
-                try {
-                    if (update.photo) {
-                        // Upload with photo
-                        await fetch(scriptURL, {
-                            method: 'POST',
-                            body: JSON.stringify(update),
-                            headers: { 'Content-Type': 'application/json' }
-                        });
-                    } else {
-                        await fetch(update.url, { mode: 'no-cors' });
-                    }
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                } catch (e) {
-                    pendingUpdates.push(update);
-                }
-            }
-            
-            savePendingUpdates();
-            
-            if (pendingUpdates.length === 0) {
-                document.getElementById('syncStatus').innerText = "✅ All Updates Synced";
-            } else {
-                document.getElementById('syncStatus').innerText = "⚠️ Some updates failed - will retry";
-            }
+    if (pendingUpdates.length === 0) return;
+    
+    document.getElementById('syncStatus').innerText = "☁️ Syncing " + pendingUpdates.length + " updates...";
+    
+    const updates = [...pendingUpdates];
+    pendingUpdates = [];
+    
+    for (const update of updates) {
+        try {
+            // All queued updates are GET requests (no photos)
+            await fetch(update.url, { mode: 'no-cors' });
+            await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (e) {
+            // If sync fails, add back to queue
+            pendingUpdates.push(update);
         }
+    }
+    
+    savePendingUpdates();
+    
+    if (pendingUpdates.length === 0) {
+        document.getElementById('syncStatus').innerText = "✅ All Updates Synced";
+    } else {
+        document.getElementById('syncStatus').innerText = "⚠️ Some updates failed - will retry";
+    }
+}
 
         window.addEventListener('online', updateOnlineStatus);
         window.addEventListener('offline', updateOnlineStatus);
@@ -266,7 +259,7 @@
             document.getElementById('cameraInput').value = '';
         }
 
-        async function handleAction(status) {
+       async function handleAction(status) {
     const stop = routeData[currentIndex];
     let note = "";
     
@@ -281,74 +274,63 @@
         
         try {
             if (currentPhoto) {
-                // Send with photo via GET with base64 in URL (for small photos)
-                // OR queue it for later if too large
-                const photoSize = currentPhoto.length;
+                // Send with photo via POST - no-cors mode
+                const payload = {
+                    rowID: stop.actualRow,
+                    status: status,
+                    note: note,
+                    stopName: stop.Name,
+                    photo: currentPhoto
+                };
                 
-                if (photoSize > 8000) {
-                    // Photo too large for GET, queue it
-                    pendingUpdates.push({ 
-                        photo: currentPhoto,
-                        rowID: stop.actualRow,
-                        status: status,
-                        note: note,
-                        stopName: stop.Name
-                    });
-                    savePendingUpdates();
-                    
-                    // Still update the sheet without photo
-                    const updateURL = `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`;
-                    await fetch(updateURL, { mode: 'no-cors' });
-                    document.getElementById('syncStatus').innerText = "✅ Photo Queued - Will Upload Later";
-                } else {
-                    // Photo small enough, send via POST
-                    const payload = {
-                        rowID: stop.actualRow,
-                        status: status,
-                        note: note,
-                        stopName: stop.Name,
-                        photo: currentPhoto
-                    };
-                    
-                    await fetch(scriptURL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        body: JSON.stringify(payload),
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    document.getElementById('syncStatus').innerText = "✅ Photo Uploaded";
-                }
+                await fetch(scriptURL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(payload),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                // Wait longer for photo upload
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                document.getElementById('syncStatus').innerText = "✅ Photo Uploaded";
             } else {
                 // Send without photo via GET
                 const updateURL = `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`;
                 await fetch(updateURL, { mode: 'no-cors' });
+                await new Promise(resolve => setTimeout(resolve, 500));
                 document.getElementById('syncStatus').innerText = "✅ Sent to Sheet";
             }
-            await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (e) {
             console.error('Sync error:', e);
-            pendingUpdates.push({ 
-                url: `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`,
-                photo: currentPhoto,
-                rowID: stop.actualRow,
-                status: status,
-                note: note,
-                stopName: stop.Name
-            });
-            savePendingUpdates();
-            document.getElementById('syncStatus').innerText = "⚠️ Queued for Sync";
+            // Only queue updates WITHOUT photos (photos are lost if offline)
+            if (!currentPhoto) {
+                pendingUpdates.push({ 
+                    url: `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`,
+                    rowID: stop.actualRow,
+                    status: status,
+                    note: note,
+                    stopName: stop.Name
+                });
+                savePendingUpdates();
+            }
+            document.getElementById('syncStatus').innerText = currentPhoto ? "⚠️ Photo Upload Failed" : "⚠️ Queued for Sync";
         }
     } else {
+        // OFFLINE - only queue metadata, no photos
+        if (currentPhoto) {
+            alert("⚠️ Cannot upload photo while offline. Photo will be lost. Please reconnect and try again.");
+        }
+        
         pendingUpdates.push({ 
             url: `${scriptURL}?rowID=${stop.actualRow}&status=${status}&note=${encodeURIComponent(note)}`,
-            photo: currentPhoto,
             rowID: stop.actualRow,
             status: status,
             note: note,
             stopName: stop.Name
+            // NO photo property - too large for localStorage
         });
         savePendingUpdates();
-        document.getElementById('syncStatus').innerText = "💾 Saved Locally";
+        document.getElementById('syncStatus').innerText = "💾 Saved Locally (no photo)";
     }
 
     currentIndex++;
@@ -364,7 +346,6 @@
         }
     }
 }
-
         loadPendingUpdates();
         updateOnlineStatus();
         fetchRoute();
