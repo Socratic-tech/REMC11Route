@@ -8,7 +8,9 @@
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#2563eb">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 
+<link rel="icon" href="/icon-192.png">
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
@@ -28,7 +30,7 @@ body { background:#1a202c; color:white; font-family:sans-serif; }
 
 <header class="bg-blue-700 p-4 text-center shadow-lg">
 <h1 class="text-xl font-bold">REMC FIELD TOOL</h1>
-<p id="syncStatus" class="text-xs mt-1">Ready</p>
+<p id="syncStatus" class="text-xs mt-1">Starting…</p>
 </header>
 
 <main class="flex-grow p-6 flex flex-col items-center">
@@ -54,12 +56,13 @@ body { background:#1a202c; color:white; font-family:sans-serif; }
 <button id="backButton" onclick="goBack()" class="hidden bg-gray-700 px-4 py-2 rounded">⬅ Back</button>
 </div>
 
-<div class="bg-gray-800 p-6 rounded-xl text-center">
+<div class="bg-gray-800 p-6 rounded-xl text-center btn-shadow">
 <p id="progressText" class="text-sm text-blue-400"></p>
 <h2 id="stopName" class="text-3xl font-bold mb-2">---</h2>
 <p id="addressText" class="text-gray-400 mb-4">---</p>
 
-<a id="navLink" target="_blank" class="block bg-blue-600 py-3 rounded-xl font-bold mb-4">
+<a id="navLink" target="_blank"
+class="block bg-blue-600 py-3 rounded-xl font-bold mb-4">
 🗺 OPEN NAVIGATION
 </a>
 
@@ -69,6 +72,7 @@ body { background:#1a202c; color:white; font-family:sans-serif; }
 
 <div id="photoContainer" class="hidden mt-4">
 <img id="photoPreview">
+<p class="text-green-400 text-sm mt-1">✓ Photo ready</p>
 </div>
 
 <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden">
@@ -81,124 +85,172 @@ body { background:#1a202c; color:white; font-family:sans-serif; }
 
 </div>
 
-<div id="finished" class="hidden text-center">
+<div id="finished" class="hidden text-center space-y-4">
 <h2 class="text-4xl font-bold">Route Complete</h2>
 </div>
 
 </main>
 
 <script>
+/* ================= CONFIG ================= */
 const scriptURL = 'https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec';
-';
 
-let routeData=[], currentIndex=0, currentPhoto=null;
-let stopStatuses = JSON.parse(localStorage.getItem('stopStatuses')||'{}');
+/* ================= DOM ================= */
+const el = {
+  loading: document.getElementById('loading'),
+  app: document.getElementById('app'),
+  listView: document.getElementById('listView'),
+  finished: document.getElementById('finished'),
+  stopsList: document.getElementById('stopsList'),
 
-/* ---------- IMAGE COMPRESSION ---------- */
-function resizeImage(file,max=1280,quality=.75){
-return new Promise(res=>{
-const img=new Image(),r=new FileReader();
-r.onload=e=>{
-img.onload=()=>{
-let w=img.width,h=img.height;
-if(w>h&&w>max){h*=max/w;w=max;}
-else if(h>max){w*=max/h;h=max;}
-const c=document.createElement('canvas');
-c.width=w;c.height=h;
-c.getContext('2d').drawImage(img,0,0,w,h);
-res(c.toDataURL('image/jpeg',quality));
-};
-img.src=e.target.result;
-};
-r.readAsDataURL(file);
-});
-}
+  stopName: document.getElementById('stopName'),
+  addressText: document.getElementById('addressText'),
+  progressText: document.getElementById('progressText'),
+  navLink: document.getElementById('navLink'),
+  backButton: document.getElementById('backButton'),
 
-/* ---------- PHOTO ---------- */
-function takePhoto(){ cameraInput.click(); }
-cameraInput.onchange=e=>{
-const file=e.target.files[0];
-resizeImage(file).then(d=>{
-currentPhoto=d;
-photoPreview.src=d;
-photoContainer.classList.remove('hidden');
-});
+  cameraInput: document.getElementById('cameraInput'),
+  photoPreview: document.getElementById('photoPreview'),
+  photoContainer: document.getElementById('photoContainer'),
+
+  syncStatus: document.getElementById('syncStatus')
 };
 
-/* ---------- VIEWS ---------- */
-function showListView(){
-app.classList.add('hidden');
-finished.classList.add('hidden');
-listView.classList.remove('hidden');
-renderStopsList();
+/* ================= STATE ================= */
+let routeData = [];
+let currentIndex = 0;
+let currentPhoto = null;
+let stopStatuses = JSON.parse(localStorage.getItem('stopStatuses') || '{}');
+
+/* ================= IMAGE RESIZE ================= */
+function resizeImage(file, max = 1280, quality = 0.75) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > h && w > max) { h *= max / w; w = max; }
+        else if (h > max) { w *= max / h; h = max; }
+
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
-function showCurrentStop(){
-listView.classList.add('hidden');
-currentIndex < routeData.length
-? app.classList.remove('hidden')
-: finished.classList.remove('hidden');
+/* ================= PHOTO ================= */
+function takePhoto() {
+  el.cameraInput.click();
 }
 
-function goBack(){
-if(currentIndex>0){currentIndex--;updateUI();}
-}
-
-/* ---------- LIST RENDER ---------- */
-function renderStopsList(){
-stopsList.innerHTML='';
-routeData.forEach((s,i)=>{
-const status=stopStatuses[s.actualRow]||'Pending';
-const cls=status==='Complete'?'stop-complete':
-status==='Skipped'?'stop-skipped':'stop-pending';
-const el=document.createElement('div');
-el.className=`stop-item ${cls} bg-gray-800 p-4 rounded`;
-el.onclick=()=>{currentIndex=i;showCurrentStop();updateUI();};
-el.innerHTML=`
-<div class="flex justify-between">
-<div>
-<p class="text-sm text-blue-400">Stop ${i+1}</p>
-<h3 class="font-bold">${s.Name}</h3>
-<p class="text-sm text-gray-400">${s.Address}</p>
-</div>
-<span>${i===currentIndex?'📍':''}</span>
-</div>`;
-stopsList.appendChild(el);
+el.cameraInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  el.syncStatus.innerText = "📷 Compressing photo…";
+  resizeImage(file).then(data => {
+    currentPhoto = data;
+    el.photoPreview.src = data;
+    el.photoContainer.classList.remove('hidden');
+    el.syncStatus.innerText = "📷 Photo ready";
+  });
 });
+
+/* ================= VIEWS ================= */
+function showListView() {
+  el.app.classList.add('hidden');
+  el.finished.classList.add('hidden');
+  el.listView.classList.remove('hidden');
+  renderStopsList();
 }
 
-/* ---------- UI ---------- */
-function updateUI(){
-const s=routeData[currentIndex];
-stopName.innerText=s.Name;
-addressText.innerText=s.Address;
-navLink.href=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.Address)}`;
-progressText.innerText=`Stop ${currentIndex+1} of ${routeData.length}`;
-backButton.classList.toggle('hidden',currentIndex===0);
-photoContainer.classList.add('hidden');
-currentPhoto=null;
-cameraInput.value='';
+function showCurrentStop() {
+  el.listView.classList.add('hidden');
+  currentIndex < routeData.length
+    ? el.app.classList.remove('hidden')
+    : el.finished.classList.remove('hidden');
 }
 
-/* ---------- ACTION ---------- */
-function handleAction(status){
-const s=routeData[currentIndex];
-stopStatuses[s.actualRow]=status;
-localStorage.setItem('stopStatuses',JSON.stringify(stopStatuses));
-
-currentIndex++;
-currentIndex<routeData.length?updateUI():
-(app.classList.add('hidden'),finished.classList.remove('hidden'));
+function goBack() {
+  if (currentIndex > 0) {
+    currentIndex--;
+    updateUI();
+  }
 }
 
-/* ---------- FETCH ---------- */
-async function fetchRoute(){
-const r=await fetch(scriptURL);
-const d=await r.json();
-routeData=d.filter(s=>!s.Status||s.Status==="Pending");
-loading.classList.add('hidden');
-routeData.length?(app.classList.remove('hidden'),updateUI()):
-finished.classList.remove('hidden');
+/* ================= LIST ================= */
+function renderStopsList() {
+  el.stopsList.innerHTML = '';
+  routeData.forEach((s, i) => {
+    const status = stopStatuses[s.actualRow] || 'Pending';
+    const cls = status === 'Complete' ? 'stop-complete'
+      : status === 'Skipped' ? 'stop-skipped'
+      : 'stop-pending';
+
+    const div = document.createElement('div');
+    div.className = `stop-item ${cls} bg-gray-800 p-4 rounded`;
+    div.onclick = () => {
+      currentIndex = i;
+      showCurrentStop();
+      updateUI();
+    };
+
+    div.innerHTML = `
+      <div>
+        <p class="text-sm text-blue-400">Stop ${i + 1}</p>
+        <h3 class="font-bold">${s.Name}</h3>
+        <p class="text-sm text-gray-400">${s.Address}</p>
+      </div>
+    `;
+    el.stopsList.appendChild(div);
+  });
+}
+
+/* ================= UI ================= */
+function updateUI() {
+  const s = routeData[currentIndex];
+  el.stopName.innerText = s.Name;
+  el.addressText.innerText = s.Address;
+  el.navLink.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.Address)}`;
+  el.progressText.innerText = `Stop ${currentIndex + 1} of ${routeData.length}`;
+  el.backButton.classList.toggle('hidden', currentIndex === 0);
+  el.photoContainer.classList.add('hidden');
+  currentPhoto = null;
+  el.cameraInput.value = '';
+}
+
+/* ================= ACTION ================= */
+function handleAction(status) {
+  const s = routeData[currentIndex];
+  stopStatuses[s.actualRow] = status;
+  localStorage.setItem('stopStatuses', JSON.stringify(stopStatuses));
+
+  currentIndex++;
+  currentIndex < routeData.length
+    ? updateUI()
+    : (el.app.classList.add('hidden'), el.finished.classList.remove('hidden'));
+}
+
+/* ================= FETCH ================= */
+async function fetchRoute() {
+  try {
+    const res = await fetch(scriptURL);
+    const data = await res.json();
+    routeData = data.filter(s => !s.Status || s.Status === "Pending");
+    el.loading.classList.add('hidden');
+    routeData.length
+      ? (el.app.classList.remove('hidden'), updateUI())
+      : el.finished.classList.remove('hidden');
+    el.syncStatus.innerText = "✅ Ready";
+  } catch (e) {
+    el.loading.innerHTML = "<p class='text-red-400'>Failed to load route</p>";
+    console.error(e);
+  }
 }
 
 fetchRoute();
