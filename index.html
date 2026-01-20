@@ -2,257 +2,234 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-  >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>REMC Route Tool</title>
-
-  <!-- PWA Meta -->
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#2563eb">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="REMC Routes">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-
   <script src="https://cdn.tailwindcss.com"></script>
-
   <style>
-    body {
-      background-color: #1a202c;
-      color: white;
-      font-family: system-ui, sans-serif;
-    }
-
-    .btn-shadow {
-      box-shadow: 0 4px 6px -1px rgba(0,0,0,.5);
-    }
-
-    .hidden {
-      display: none;
-    }
+    body { background-color: #1a202c; color: white; font-family: system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    .btn-shadow { box-shadow: 0 4px 6px -1px rgba(0,0,0,.5); }
+    .hidden { display: none; }
+    .active-tab { background-color: #2563eb !important; color: white !important; }
   </style>
 </head>
-
 <body class="flex flex-col min-h-screen">
 
-<header class="bg-blue-700 p-4 text-center shadow-lg">
-  <h1 class="text-xl font-bold tracking-tight">REMC FIELD TOOL</h1>
-  <p id="syncStatus" class="text-xs text-blue-200 mt-1">Loading…</p>
+<header class="bg-blue-700 p-4 text-center shadow-lg sticky top-0 z-50">
+  <h1 class="text-xl font-bold tracking-tight uppercase">REMC Field Tool</h1>
+  <p id="syncStatus" class="text-xs text-blue-200 mt-1">Initializing...</p>
+  
+  <div class="flex mt-4 bg-blue-900/50 rounded-lg p-1 max-w-xs mx-auto border border-blue-400/30">
+    <button id="tabStop" onclick="switchView('stop')" class="flex-1 py-2 text-xs font-bold rounded-md active-tab transition-all">CURRENT STOP</button>
+    <button id="tabList" onclick="switchView('list')" class="flex-1 py-2 text-xs font-bold rounded-md text-blue-200 transition-all">LIST VIEW</button>
+  </div>
 </header>
 
-<main class="flex-grow flex flex-col items-center p-6">
+<main class="flex-grow flex flex-col items-center p-4">
 
-  <!-- LOADING -->
-  <div id="loading" class="text-center">
-    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-    <p class="text-lg">Loading Today's Route…</p>
+  <div id="loading" class="mt-20 text-center">
+    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+    <p class="text-gray-400">Loading Route Data...</p>
   </div>
 
-  <!-- STOP VIEW -->
-  <div id="app" class="hidden w-full max-w-md space-y-6">
-
-    <div class="bg-gray-800 rounded-2xl p-6 border border-gray-700 btn-shadow text-center">
-
-      <p
-        id="progressText"
-        class="text-blue-400 text-sm font-bold mb-2 uppercase tracking-widest"
-      >
-        Stop --
-      </p>
-
-      <h2 id="stopName" class="text-3xl font-extrabold mb-2">---</h2>
-      <p id="addressText" class="text-gray-400 text-lg mb-2">---</p>
-
-      <!-- DELIVERY NOTE (NEW) -->
-      <div
-        id="deliveryNote"
-        class="hidden bg-yellow-900/40 border border-yellow-700 text-yellow-200 text-sm rounded-lg p-3 mt-3 text-left"
-      >
-        <strong>📦 Delivery Note</strong>
-        <div id="deliveryNoteText" class="mt-1"></div>
+  <div id="stopView" class="hidden w-full max-w-md space-y-4">
+    <div class="bg-gray-800 rounded-2xl p-6 border border-gray-700 btn-shadow">
+      <div class="text-center mb-4">
+        <p id="progressText" class="text-blue-400 text-xs font-bold uppercase tracking-widest mb-1">Stop 0 of 0</p>
+        <h2 id="stopName" class="text-2xl font-black leading-tight mb-1">---</h2>
+        <p id="addressText" class="text-gray-400 text-sm">---</p>
       </div>
 
-      <a
-        id="navLink"
-        href="#"
-        target="_blank"
-        class="inline-block bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-xl w-full text-xl transition transform active:scale-95 btn-shadow mt-4"
-      >
-        🗺️ OPEN NAVIGATION
-      </a>
+      <div id="deliveryNote" class="hidden bg-yellow-900/30 border border-yellow-700/50 text-yellow-100 text-sm rounded-xl p-4 my-4">
+        <div class="flex items-center gap-2 mb-1">
+            <span class="text-lg">📦</span>
+            <strong class="uppercase text-xs tracking-tighter">Delivery Note</strong>
+        </div>
+        <div id="deliveryNoteText" class="italic opacity-90"></div>
+      </div>
 
-      <button
-        onclick="takePhoto()"
-        id="photoButton"
-        class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-xl w-full text-lg transition transform active:scale-95 btn-shadow mt-4"
-      >
-        📷 TAKE PHOTO
+      <button id="navBtn" onclick="openNavigation()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-xl text-xl shadow-lg transition transform active:scale-95 flex items-center justify-center gap-3">
+        <span>🗺️</span> START NAVIGATION
       </button>
 
-      <div id="photoContainer" class="hidden mt-4">
-        <img id="photoPreview" class="rounded-lg">
-        <p class="text-green-400 text-sm mt-2">✓ Photo ready</p>
-      </div>
+      <button onclick="takePhoto()" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-xl mt-4 border border-gray-600 transition flex items-center justify-center gap-2">
+        <span>📷</span> <span id="photoBtnText">ATTACH PHOTO</span>
+      </button>
 
-      <input
-        type="file"
-        id="cameraInput"
-        accept="image/*"
-        capture="environment"
-        class="hidden"
-      >
+      <div id="photoContainer" class="hidden mt-4 text-center">
+        <img id="photoPreview" class="rounded-lg max-h-40 mx-auto border-2 border-green-500">
+        <p class="text-green-400 text-xs mt-2 font-bold">✓ PHOTO ATTACHED</p>
+      </div>
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden">
     </div>
 
     <div class="grid grid-cols-2 gap-4">
-      <button
-        onclick="handleAction('Complete')"
-        class="bg-green-600 hover:bg-green-500 py-6 rounded-xl font-bold text-xl btn-shadow transition transform active:scale-95"
-      >
-        ✅ DONE
-      </button>
-      <button
-        onclick="handleAction('Skipped')"
-        class="bg-red-600 hover:bg-red-500 py-6 rounded-xl font-bold text-xl btn-shadow transition transform active:scale-95"
-      >
-        ❌ SKIP
-      </button>
+      <button onclick="handleAction('Complete')" class="bg-green-600 hover:bg-green-500 py-6 rounded-2xl font-black text-xl shadow-lg transition transform active:scale-95">DONE</button>
+      <button onclick="handleAction('Skipped')" class="bg-red-600 hover:bg-red-500 py-6 rounded-2xl font-black text-xl shadow-lg transition transform active:scale-95 text-white/90">SKIP</button>
     </div>
+  </div>
+
+  <div id="listView" class="hidden w-full max-w-md animate-fadeIn">
+    <div id="listContainer" class="space-y-3">
+        </div>
   </div>
 
 </main>
 
 <script>
-/**********************************************************
- * CONFIG
- **********************************************************/
-const scriptURL =
-  "https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec";
+const scriptURL = "https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec";
 
 let routeData = [];
 let currentIndex = 0;
 let currentPhoto = null;
 
-/**********************************************************
- * FETCH ROUTE
- **********************************************************/
 async function fetchRoute() {
   try {
     const res = await fetch(scriptURL);
-    routeData = await res.json();
+    const allData = await res.json();
+    
+    // Auto-filter for pending or blank status
+    routeData = allData.filter(s => !s.Status || s.Status === "" || s.Status === "Pending");
 
     document.getElementById("loading").classList.add("hidden");
-
     if (!routeData.length) {
-      document.getElementById("syncStatus").innerText = "No stops today";
+      document.getElementById("syncStatus").innerText = "Route Complete for Today 🏁";
       return;
     }
 
-    document.getElementById("app").classList.remove("hidden");
+    renderList();
     updateUI();
+    document.getElementById("stopView").classList.remove("hidden");
   } catch (e) {
-    document.getElementById("syncStatus").innerText = "Error loading route";
+    document.getElementById("syncStatus").innerText = "⚠️ Connection Error";
   }
 }
 
-/**********************************************************
- * UI UPDATE
- **********************************************************/
+function switchView(view) {
+    if(view === 'stop') {
+        document.getElementById('stopView').classList.remove('hidden');
+        document.getElementById('listView').classList.add('hidden');
+        document.getElementById('tabStop').classList.add('active-tab');
+        document.getElementById('tabList').classList.remove('active-tab');
+    } else {
+        document.getElementById('stopView').classList.add('hidden');
+        document.getElementById('listView').classList.remove('hidden');
+        document.getElementById('tabList').classList.add('active-tab');
+        document.getElementById('tabStop').classList.remove('active-tab');
+        renderList();
+    }
+}
+
+function renderList() {
+    const container = document.getElementById('listContainer');
+    container.innerHTML = routeData.map((stop, idx) => `
+        <div onclick="selectStop(${idx})" class="p-4 rounded-xl border ${idx === currentIndex ? 'bg-blue-900/30 border-blue-500' : 'bg-gray-800 border-gray-700'} transition active:scale-95">
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Stop ${idx+1}</p>
+                    <h3 class="font-bold text-lg leading-tight">${stop.Name}</h3>
+                    <p class="text-gray-400 text-xs mt-1">${stop.Address}</p>
+                </div>
+                <span class="text-blue-500">${idx === currentIndex ? '📍' : '➡️'}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function selectStop(idx) {
+    currentIndex = idx;
+    updateUI();
+    switchView('stop');
+}
+
 function updateUI() {
   const stop = routeData[currentIndex];
-
   document.getElementById("stopName").innerText = stop.Name;
   document.getElementById("addressText").innerText = stop.Address;
-  document.getElementById("progressText").innerText =
-    `Stop ${currentIndex + 1} of ${routeData.length}`;
+  document.getElementById("progressText").innerText = `Stop ${currentIndex + 1} of ${routeData.length}`;
+  document.getElementById("syncStatus").innerText = "System Online";
 
-  document.getElementById("navLink").href =
-    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.Address)}`;
-
-  // DELIVERY NOTE LOGIC (NEW)
-  const noteBox = document.getElementById("deliveryNote");
-  const noteText = document.getElementById("deliveryNoteText");
-
-  const deliveryNote =
-    stop["Delivery Note"] ||
-    stop["DeliveryNote"] ||
-    "";
-
-  if (deliveryNote && deliveryNote.trim() !== "") {
-    noteText.innerText = deliveryNote;
-    noteBox.classList.remove("hidden");
+  const deliveryNote = stop["Delivery Note"] || stop["DeliveryNote"] || "";
+  const noteDiv = document.getElementById("deliveryNote");
+  if (deliveryNote.trim()) {
+      document.getElementById("deliveryNoteText").innerText = deliveryNote;
+      noteDiv.classList.remove("hidden");
   } else {
-    noteText.innerText = "";
-    noteBox.classList.add("hidden");
+      noteDiv.classList.add("hidden");
   }
 
-  // Reset photo
+  // Reset Photo
   currentPhoto = null;
   document.getElementById("photoContainer").classList.add("hidden");
-  document.getElementById("cameraInput").value = "";
+  document.getElementById("photoBtnText").innerText = "ATTACH PHOTO";
 }
 
-/**********************************************************
- * PHOTO HANDLING
- **********************************************************/
-function takePhoto() {
-  document.getElementById("cameraInput").click();
+function openNavigation() {
+    const address = routeData[currentIndex].Address;
+    const encoded = encodeURIComponent(address);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    
+    // Auto-select protocol
+    const url = isIOS ? `maps://?q=${encoded}` : `google.navigation:q=${encoded}`;
+    
+    window.location.href = url;
 }
+
+async function handleAction(status) {
+  const stop = routeData[currentIndex];
+  let note = "";
+  if (status === "Skipped") note = prompt("Reason for skipping?") || "No reason";
+
+  document.getElementById("syncStatus").innerText = "☁️ Syncing...";
+
+  const payload = {
+    rowID: stop.actualRow,
+    status: status,
+    note: note,
+    photo: currentPhoto || ""
+  };
+
+  try {
+    // Mode no-cors for Google Apps Script redirects
+    fetch(scriptURL, {
+      method: "POST",
+      mode: "no-cors",
+      body: JSON.stringify(payload)
+    });
+    
+    document.getElementById("syncStatus").innerText = "✅ Saved to Sheet";
+    
+    // Remove completed stop from local view
+    routeData.splice(currentIndex, 1);
+    
+    if (routeData.length > 0) {
+        if (currentIndex >= routeData.length) currentIndex = 0;
+        updateUI();
+    } else {
+        document.getElementById("stopView").classList.add("hidden");
+        document.getElementById("syncStatus").innerText = "Route Complete! 🏁";
+        alert("All stops finished!");
+    }
+  } catch (e) {
+    alert("Sync Error. Check Internet.");
+  }
+}
+
+function takePhoto() { document.getElementById("cameraInput").click(); }
 
 document.getElementById("cameraInput").addEventListener("change", e => {
   const file = e.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = ev => {
     currentPhoto = ev.target.result;
     document.getElementById("photoPreview").src = currentPhoto;
     document.getElementById("photoContainer").classList.remove("hidden");
+    document.getElementById("photoBtnText").innerText = "REPLACE PHOTO";
   };
   reader.readAsDataURL(file);
 });
 
-/**********************************************************
- * COMPLETE / SKIP
- **********************************************************/
-async function handleAction(status) {
-  const stop = routeData[currentIndex];
-  let note = "";
-
-  if (status === "Skipped") {
-    note = prompt("Reason for skipping?") || "";
-  }
-
-  const payload = {
-    rowID: stop.actualRow,
-    status,
-    note,
-    stopName: stop.Name,
-    photo: currentPhoto || ""
-  };
-
-  await fetch(scriptURL, {
-    method: "POST",
-    mode: "no-cors",
-    body: JSON.stringify(payload),
-    headers: { "Content-Type": "application/json" }
-  });
-
-  currentIndex++;
-  if (currentIndex < routeData.length) {
-    updateUI();
-  } else {
-    document.getElementById("syncStatus").innerText = "Route complete";
-    document.getElementById("app").classList.add("hidden");
-  }
-}
-
-/**********************************************************
- * INIT
- **********************************************************/
 fetchRoute();
 </script>
-
 </body>
 </html>
