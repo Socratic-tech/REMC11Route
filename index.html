@@ -143,6 +143,7 @@ function selectStop(idx) {
 
 function updateUI() {
   const stop = routeData[currentIndex];
+  const routeDay = stop.routeDay;
   document.getElementById("stopName").innerText = stop.Name;
   document.getElementById("addressText").innerText = stop.Address;
   document.getElementById("progressText").innerText = `Stop ${currentIndex + 1} of ${routeData.length}`;
@@ -181,12 +182,14 @@ async function handleAction(status) {
 
   document.getElementById("syncStatus").innerText = "☁️ Syncing...";
 
-  const payload = {
-    rowID: stop.actualRow,
-    status: status,
-    note: note,
-    photo: currentPhoto || ""
-  };
+ const payload = {
+  rowID: stop.actualRow,
+  status: status,
+  note: note,
+  stopName: stop.Name,
+  photo: currentPhoto,
+  routeDay: routeDay   // ✅ ADD THIS
+};
 
   try {
     // Mode no-cors for Google Apps Script redirects
