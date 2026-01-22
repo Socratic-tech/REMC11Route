@@ -88,7 +88,10 @@ async function fetchRoute() {
     const allData = await res.json();
     
     // Auto-filter for pending or blank status
-    routeData = allData.filter(s => !s.Status || s.Status === "" || s.Status === "Pending");
+    routeData = allData.filter(s => {
+  const status = (s.Status || "").toString().trim().toLowerCase();
+  return status === "" || status === "pending";
+});
 
     document.getElementById("loading").classList.add("hidden");
     if (!routeData.length) {
@@ -188,7 +191,7 @@ async function handleAction(status) {
   note: note,
   stopName: stop.Name,
   photo: currentPhoto,
-  routeDay: routeDay   // ✅ ADD THIS
+  routeDay: stop.routeDay   // ✅ ADD THIS
 };
 
   try {
