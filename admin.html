@@ -1,196 +1,364 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>REMC Route – Admin Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="pageTitle">REMC Route – Admin Dashboard</title>
 
-  <!-- Leaflet -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+  <!-- Leaflet map library -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      margin: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       background: #0f172a;
       color: #e5e7eb;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
+    /* ── Header ── */
     header {
       background: #1e293b;
       padding: 12px 16px;
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-shrink: 0;
+      border-bottom: 1px solid #334155;
     }
+    header h1 { font-size: 18px; flex-grow: 1; }
 
-    header h1 {
-      font-size: 18px;
-      margin: 0;
-      flex-grow: 1;
-    }
-
-    header input {
+    header input, header select {
       background: #020617;
       border: 1px solid #334155;
       color: white;
-      padding: 6px 8px;
+      padding: 6px 10px;
       border-radius: 6px;
+      font-size: 14px;
     }
 
-    #status {
-      padding: 8px 16px;
+    /* ── Status bar ── */
+    #statusBar {
+      padding: 6px 16px;
       background: #020617;
-      font-size: 14px;
+      font-size: 13px;
+      color: #94a3b8;
+      flex-shrink: 0;
+      border-bottom: 1px solid #1e293b;
     }
 
-    #map {
-      height: calc(100vh - 96px);
-      width: 100%;
+    /* ── Stats strip ── */
+    #statsStrip {
+      display: flex;
+      gap: 16px;
+      padding: 8px 16px;
+      background: #0f172a;
+      flex-shrink: 0;
+      font-size: 13px;
+      flex-wrap: wrap;
     }
-
-    .leaflet-popup-content {
-      font-size: 14px;
-    }
-
-    .popup-title {
+    .stat-pill {
+      padding: 4px 12px;
+      border-radius: 999px;
       font-weight: bold;
-      margin-bottom: 4px;
+      font-size: 12px;
+    }
+    .pill-total    { background: #1e293b; color: #94a3b8; }
+    .pill-complete { background: #14532d; color: #86efac; }
+    .pill-skipped  { background: #450a0a; color: #fca5a5; }
+    .pill-pending  { background: #422006; color: #fde68a; }
+
+    /* ── Map ── */
+    #map { flex: 1; width: 100%; }
+
+    /* ── Popup ── */
+    .leaflet-popup-content-wrapper {
+      background: #1e293b;
+      color: #e5e7eb;
+      border-radius: 10px;
+      border: 1px solid #334155;
+    }
+    .leaflet-popup-tip { background: #1e293b; }
+    .popup-title { font-weight: bold; font-size: 15px; margin-bottom: 4px; }
+    .popup-address { font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
+    .popup-status {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .status-Complete { background: #14532d; color: #86efac; }
+    .status-Skipped  { background: #450a0a; color: #fca5a5; }
+    .status-Pending  { background: #422006; color: #fde68a; }
+    .popup-note  { font-size: 12px; color: #fde68a; margin-top: 6px; }
+    .popup-photo { margin-top: 8px; }
+    .popup-photo img {
+      max-width: 220px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 2px solid #334155;
     }
 
-    .popup-photo img {
-      max-width: 240px;
-      margin-top: 6px;
-      border-radius: 6px;
+    /* ── Legend ── */
+    #legend {
+      position: absolute;
+      bottom: 40px;
+      right: 10px;
+      z-index: 1000;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+    }
+    .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .legend-dot {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.3);
     }
   </style>
 </head>
 <body>
 
+<!-- ── Header ── -->
 <header>
-  <h1>REMC Route – Admin Map</h1>
-  <input type="date" id="datePicker" />
+  <h1 id="headerTitle">REMC Route – Admin Dashboard</h1>
+  <input type="date" id="datePicker" title="Select route date">
+  <select id="viewMode" onchange="loadData()" title="Filter by status">
+    <option value="all">All Stops</option>
+    <option value="Complete">Complete Only</option>
+    <option value="Skipped">Skipped Only</option>
+    <option value="Pending">Pending Only</option>
+  </select>
 </header>
 
-<div id="status">Loading…</div>
+<div id="statusBar">Loading…</div>
+
+<!-- ── Stats strip ── -->
+<div id="statsStrip" style="display:none">
+  <span class="stat-pill pill-total"   id="statTotal">0 Total</span>
+  <span class="stat-pill pill-complete" id="statComplete">0 Complete</span>
+  <span class="stat-pill pill-skipped"  id="statSkipped">0 Skipped</span>
+  <span class="stat-pill pill-pending"  id="statPending">0 Pending</span>
+</div>
+
+<!-- ── Map ── -->
 <div id="map"></div>
 
+<!-- ── Legend ── -->
+<div id="legend">
+  <div class="legend-row"><div class="legend-dot" style="background:#22c55e"></div> Complete</div>
+  <div class="legend-row"><div class="legend-dot" style="background:#ef4444"></div> Skipped</div>
+  <div class="legend-row"><div class="legend-dot" style="background:#eab308"></div> Pending</div>
+</div>
+
 <script>
-  /**********************************************************
-   * CONFIG – YOUR LIVE APPS SCRIPT ENDPOINT
-   **********************************************************/
-  const SCRIPT_URL =
-    "https://script.google.com/macros/s/AKfycbwlOPC1U5DtR3xcIXaCY0fBedy5tLdhTUh276O4MEGsVgrWnsqfHJtfqkBKtpN_qe60ow/exec";
+  // ==============================================================
+  // ▶ CONFIGURATION — Edit these values before deploying
+  // ==============================================================
+  const UNIT_NAME  = "REMC";                       // e.g. "REMC 4"
+  const SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_URL_HERE";
 
-  let map;
-  let markers = [];
+  // Default map center — set to the approximate center of your service area
+  const MAP_CENTER = [42.0, -86.0];  // [latitude, longitude]
+  const MAP_ZOOM   = 10;
+  // ==============================================================
 
+  document.getElementById('pageTitle').innerText   = `${UNIT_NAME} Route – Admin Dashboard`;
+  document.getElementById('headerTitle').innerText = `${UNIT_NAME} Route – Admin Dashboard`;
+
+  // Marker color by status
+  const STATUS_COLORS = {
+    Complete: '#22c55e',
+    Skipped:  '#ef4444',
+    Pending:  '#eab308',
+  };
+
+  let map, markers = [], polyline;
+
+  // ────────────────────────────────────────────────────────────
+  // HELPERS
+  // ────────────────────────────────────────────────────────────
   function todayISO() {
     return new Date().toISOString().split("T")[0];
   }
 
-  function clearMarkers() {
+  function showStatus(msg) {
+    document.getElementById('statusBar').textContent = msg;
+  }
+
+  function clearMap() {
     markers.forEach(m => map.removeLayer(m));
     markers = [];
+    if (polyline) { map.removeLayer(polyline); polyline = null; }
   }
 
-  function showStatus(msg) {
-    document.getElementById("status").textContent = msg;
+  function makeCircleIcon(color) {
+    return L.divIcon({
+      className: '',
+      html: `<div style="
+        width:22px; height:22px; border-radius:50%;
+        background:${color};
+        border:3px solid white;
+        box-shadow:0 2px 6px rgba(0,0,0,.5);
+      "></div>`,
+      iconSize:   [22, 22],
+      iconAnchor: [11, 11],
+    });
   }
 
+  function makeNumberIcon(num, color) {
+    return L.divIcon({
+      className: '',
+      html: `<div style="
+        width:26px; height:26px; border-radius:50%;
+        background:${color};
+        border:3px solid white;
+        box-shadow:0 2px 6px rgba(0,0,0,.5);
+        display:flex; align-items:center; justify-content:center;
+        font-weight:bold; font-size:11px; color:white;
+      ">${num}</div>`,
+      iconSize:   [26, 26],
+      iconAnchor: [13, 13],
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // LOAD + RENDER DATA
+  // ────────────────────────────────────────────────────────────
   function loadData() {
-    const date = document.getElementById("datePicker").value;
+    const date = document.getElementById('datePicker').value;
     if (!date) return;
 
     showStatus("Loading route…");
-    clearMarkers();
+    clearMap();
 
     fetch(`${SCRIPT_URL}?mode=dailySummary&date=${date}`)
       .then(r => r.json())
       .then(stops => {
-        console.log("Stops received:", stops);
-
         if (!Array.isArray(stops) || stops.length === 0) {
-          showStatus("No routes for this date.");
+          showStatus(`No route data for ${date}.`);
+          document.getElementById('statsStrip').style.display = 'none';
           return;
         }
 
-        let bounds = [];
+        // Update stats
+        const total    = stops.length;
+        const complete = stops.filter(s => s.status === 'Complete').length;
+        const skipped  = stops.filter(s => s.status === 'Skipped').length;
+        const pending  = stops.filter(s => !s.status || s.status === 'Pending').length;
 
-        stops.forEach(stop => {
-          // Normalize coordinate casing
+        document.getElementById('statTotal').innerText    = `${total} Total`;
+        document.getElementById('statComplete').innerText = `${complete} Complete`;
+        document.getElementById('statSkipped').innerText  = `${skipped} Skipped`;
+        document.getElementById('statPending').innerText  = `${pending} Pending`;
+        document.getElementById('statsStrip').style.display = 'flex';
+
+        // Filter by view mode
+        const viewMode = document.getElementById('viewMode').value;
+        const filtered = viewMode === 'all'
+          ? stops
+          : stops.filter(s => {
+              const st = s.status || 'Pending';
+              return st === viewMode;
+            });
+
+        const bounds     = [];
+        const routeCoords = [];
+
+        filtered.forEach((stop, idx) => {
           const lat = Number(stop.lat ?? stop.Lat);
           const lng = Number(stop.lng ?? stop.Lng);
 
-          // Skip ONLY invalid coordinates
-          if (
-            !Number.isFinite(lat) ||
-            !Number.isFinite(lng) ||
-            lat === 0 ||
-            lng === 0
-          ) {
-            console.warn("Skipping invalid coordinates:", stop);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+            console.warn("Skipping stop with invalid coordinates:", stop);
             return;
           }
 
+          const statusLabel = stop.status || 'Pending';
+          const color       = STATUS_COLORS[statusLabel] || STATUS_COLORS.Pending;
+          const icon        = makeNumberIcon(idx + 1, color);
+
+          const noteHtml = stop.note
+            ? `<div class="popup-note">📝 ${escapeHtml(stop.note)}</div>`
+            : '';
+
+          const photoHtml = stop.photo
+            ? `<div class="popup-photo">
+                 <a href="${stop.photo}" target="_blank">
+                   <img src="${stop.photo}" alt="Delivery photo">
+                 </a>
+               </div>`
+            : '';
+
           const popup = `
-            <div class="popup">
-              <div class="popup-title">${stop.name}</div>
-              <div>${stop.address}</div>
-              <div>Status: ${stop.status}</div>
-              ${
-                stop.photo
-                  ? `<div class="popup-photo">
-                       <a href="${stop.photo}" target="_blank">
-                         <img src="${stop.photo}" />
-                       </a>
-                     </div>`
-                  : ""
-              }
+            <div>
+              <div class="popup-title">#${idx + 1} – ${escapeHtml(stop.name || '—')}</div>
+              <div class="popup-address">${escapeHtml(stop.address || '')}</div>
+              <span class="popup-status status-${statusLabel}">${statusLabel}</span>
+              ${noteHtml}
+              ${photoHtml}
             </div>
           `;
 
-          const marker = L.marker([lat, lng])
+          const marker = L.marker([lat, lng], { icon })
             .addTo(map)
-            .bindPopup(popup);
+            .bindPopup(popup, { maxWidth: 260 });
 
           markers.push(marker);
           bounds.push([lat, lng]);
+          routeCoords.push([lat, lng]);
         });
 
-        if (bounds.length === 0) {
-          showStatus("No mappable stops for this date.");
-          return;
+        // Draw route line
+        if (routeCoords.length > 1) {
+          polyline = L.polyline(routeCoords, {
+            color:   '#3b82f6',
+            weight:  2,
+            opacity: 0.5,
+            dashArray: '6, 6',
+          }).addTo(map);
         }
 
-        map.fitBounds(bounds, { padding: [40, 40] });
-        showStatus(`${bounds.length} stop(s) loaded.`);
+        if (bounds.length > 0) {
+          map.fitBounds(bounds, { padding: [40, 40] });
+          showStatus(`${bounds.length} stop(s) shown for ${date} – ${complete} complete, ${skipped} skipped, ${pending} pending.`);
+        } else {
+          showStatus(`No mappable stops for ${date} (missing coordinates).`);
+        }
       })
       .catch(err => {
         console.error(err);
-        showStatus("Error loading route data.");
+        showStatus("Error loading route data. Check the console for details.");
       });
   }
 
-  /**********************************************************
-   * INIT
-   **********************************************************/
-  window.onload = () => {
-    map = L.map("map").setView([41.9, -86.3], 10);
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, m =>
+      ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m]));
+  }
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors"
+  // ────────────────────────────────────────────────────────────
+  // INIT
+  // ────────────────────────────────────────────────────────────
+  window.onload = () => {
+    map = L.map('map').setView(MAP_CENTER, MAP_ZOOM);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    const picker = document.getElementById("datePicker");
+    const picker = document.getElementById('datePicker');
     picker.value = todayISO();
-    picker.addEventListener("change", loadData);
+    picker.addEventListener('change', loadData);
 
-    loadData(); // auto-load today
+    loadData();
   };
 </script>
 
